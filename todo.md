@@ -1,0 +1,6 @@
+- tests
+- real logging instead of console.log (necessary?)
+- test POST with big data
+- test GET with big data
+- configuration 
+- 
