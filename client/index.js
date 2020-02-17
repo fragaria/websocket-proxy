@@ -2,7 +2,9 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const http = require('http');
 const WebSocket = require('ws');
-const ws = new WebSocket(`ws://localhost:8080/ws/pill/${process.argv[2]}`);
+const ws_ = new WebSocket(`ws://localhost:8080/ws/pill/${process.argv[2]}`);
+const WsJsonProtocol = require('../lib/ws-json');
+const ws = new WsJsonProtocol(ws_);
 const forward_host = process.argv[3];
 const forward_port = process.argv[4];
 
@@ -55,7 +57,6 @@ class RequestForwarder extends Object {
   }
 
   _send(data) {
-    let message = JSON.stringify(data, undefined, 3);
     console.log(`Sending ${message}`)
     this._ws.send(message);
   }
@@ -71,16 +72,9 @@ ws.on('open', function open() {
   const request_forwarder = new RequestForwarder(ws, forward_host, forward_port);
   console.log("Client connection openned.");
 
-  ws.send(JSON.stringify({data:"Hallo."}));
+  ws.send({data:"Hallo."});
   ws.on("message", function (message) {
     console.log(`Got message\n------\n${message}\n------\n\n`);
-    let data;
-    try {
-      data = JSON.parse(message);
-    } catch(err) {
-      console.error(err);
-      return;
-    }
-    request_forwarder.on_message(data);
+    request_forwarder.on_message(message);
   });
 });

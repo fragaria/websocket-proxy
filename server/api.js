@@ -1,4 +1,5 @@
 'use strict';
+//-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const REQ_SIZE_LIMIT = 1024*1024;
 const uuid = require('uuid');
 const { HttpError, BadGateway } = require('./HttpError');
