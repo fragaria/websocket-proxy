@@ -15,9 +15,13 @@ let server = http.createServer(
 const wss = new WebSocket.Server({ noServer: true });
 
 
-let server_port = process.argv[2];
+let [server_host, server_port] = process.argv[2].split(':', 2);
+if (server_port === undefined && !isNaN(server_host)) {
+  server_port = server_host;
+  server_host = '0.0.0.0';
+}
 
-if (! server_port) server_port=8000;
+if (!server_port) server_port=8000;
 /*
  * @authenticator ... function (request, callback) which calls callback(err, client).
  *                    `err` is empty on success and client which should be an object with `key` property.
@@ -66,5 +70,5 @@ server.on("listening", function onListening() {
     `);
 
 });
-server.listen(server_port);
+server.listen(server_port, server_host);
 
