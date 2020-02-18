@@ -1,94 +1,46 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
-const path = require('path');
-const http = require('http');
-const WebSocket = require('ws');
-const WsJsonProtocol = require('../lib/ws-json');
+const WebSockProxyClient = require('./client').WebSockProxyClient;
+
+
+function usage() {
+  console.log(`USAGE:
+
+    client <client-key> <server_host>[:<server_port>] [forward_to]
+
+    client-key    ... unique key to identify client on server
+    server_host   ... hostname or ip address of websocket proxy server
+    server_port   ... port of websocket proxy server
+    forward_to    ... base uri to forward all requests to (defaults to
+                      http://localhost)
+
+`);
+}
+
+function die(message, {edify=true}={}) {
+  if (edify) usage();
+  if (message) console.log(message);
+  process.exit();
+}
 
 const client_key = process.argv[2];
 const server_host_port = process.argv[3];
-const forward_base_uri = process.argv[4];
-
-if (client_key === undefined) {
-  throw new Error("Missing client key.");
-}
-
-const ws_ = new WebSocket(`ws://${server_host_port}/ws/${client_key}`);
-const ws = new WsJsonProtocol(ws_);
-
-class RequestForwarder extends Object {
-  constructor(ws, forward_base_uri) {
-    super();
-    if (!forward_base_uri) throw new Error("Missing the base uri to forward to.");
-    let parsed_uri = new URL(forward_base_uri);
-    if (parsed_uri.search) throw new Error("Search path is not implemented yet for forward base uri.");
-    if (!parsed_uri.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsed_uri.protocol}).`);
-    this._forward_base_uri = parsed_uri;
-    this._ws = ws;
-  }
-
-  fire_request(message, ) {
-    const ireq = message.request;
-    console.log(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
-    let oreq_uri = new URL(this._forward_base_uri.toString()); // clone the original uri
-    oreq_uri.href = path.posix.join(oreq_uri.href, ireq.url);
-    const req_params = {
-      method: ireq.method,
-      headers: ireq.headers,
-    }
-    let _send = this._send.bind(this);
-    let sender = function sender(event_id) {
-      return function (data) {
-        if (event_id != 'data') 
-          console.log(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
-        _send({
-          channel: message.channel,
-          id: message.id,
-          event: event_id,
-          data: data,
-        })
-      }
-    }
-    console.log(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.pathname}`);
-    const req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
-      res.setEncoding('utf8');
-      console.log(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
-      sender('headers')({
-        statusCode: res.statusCode,
-        statusMessage: res.statusMessage,
-        headers: res.headers,
-      });
-      res.on('data', sender('data'));
-      res.on('end', sender('end'));
-    });
-    req.on('error', sender('error'));
-    if (ireq.body) {
-      req.write(ireq.body);
-    }
-    req.end();
-  }
-
-  _send(data) {
-    this._ws.send(data);
-  }
-
-  on_message(message) {
-    if (!message.channel || message.channel.indexOf('/req/') != 0) return;
-    else this.fire_request(message);
-  }
-}
+const forward_to = process.argv[4];
 
 
-ws.on('open', function open() {
-  const request_forwarder = new RequestForwarder(ws, forward_base_uri);
-  console.log("Client connection openned.");
+client_key || die("Missing client key.");
+server_host_port || die("Missing server host:port.");
 
-  ws.send({data:"Hallo."});
-  ws.on("message", function (message) {
-    request_forwarder.on_message(message);
+
+new WebSockProxyClient(client_key)
+  .connect(server_host_port, {forward_to: forward_to })
+  .on('error', function clientError() {
+    console.error(`Could not connect to remote server ${server_host_port}.
+
+      Make sure the server is running on the address port specified?
+      `);
+  })
+  .on('close', function clientOnClose() {
+    console.log('Connection closed, exitting.');
+    process.exit();
   });
-  ws.on("close", function onClose() {
-    console.log("Client connection closed.");
-    process.exit()
-  });
-});
