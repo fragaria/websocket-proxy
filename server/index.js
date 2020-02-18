@@ -34,7 +34,7 @@ function createServer(authenticator) {
           console.log('Client.ID: ' + client.id);
       });
     ws.on('message', function message(msg) {
-      console.log(`Received message ${msg} from client ${client.key}`);
+      // console.log(`Received message from client ${client.key}`);
     });
   });
 
@@ -50,6 +50,10 @@ function createServer(authenticator) {
       wss.handleUpgrade(request, socket, head, function done(ws) {
         console.log("Emitting ws connection");
         ws.send(JSON.stringify({"data": "ping"}));
+        ws.on('close', function onClose() {
+          console.log(`Client ${client.key} closed connection.`);
+          authenticator.onClose(ws, client);
+        });
         authenticator.onConnected(ws, client);
         ws.client_object = client;
         wss.emit('connection', ws, request, client);

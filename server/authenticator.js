@@ -26,6 +26,10 @@ class KeyAuthenticator extends Object {
         ws.id = client.key;
     }
 
+    onClose (ws, client) {
+        delete this._clients_by_id[client.key];
+    }
+
     clientFromId (id) {
         return this._clients_by_id[id];
     }

@@ -6,7 +6,7 @@ const { HttpError, BadGateway } = require('./HttpError');
 
 class Api extends Object {
   constructor(path_prefix, get_client) {
-    console.log(`Constructor called with ${path_prefix} ${get_client}.`);
+    console.log(`Starting API with path prefix '${path_prefix}'.`);
     super();
     if (! path_prefix) {
       path_prefix = '/';
@@ -30,7 +30,7 @@ class Api extends Object {
 
 
   _request_handler(req, res) {
-    console.log(`api received ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
+    console.log(`API < ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
     let path_info = this._parse_request_path(req);
     if (!path_info || !path_info.id || ! path_info.resource) {
       console.error(`Invalid url ${req.url}`);
@@ -53,26 +53,25 @@ class Api extends Object {
       if (message.channel && message.channel == channel) {
         switch(message.event) {
           case 'headers':
-            console.log(message.event);
+            console.log(`<:   ${channel}:  ${message.data.statusCode} ${message.data.statusMessage} / ${message.event} ${req.method} ${req.url}`);
             res.writeHead(message.data.statusCode, message.data.statusMessage, message.data.headers);
             break;
           case 'data':
-            console.log(message.event);
+            console.log(`<:   ${channel}:  data ${message.data.length}`);
             res.write(message.data);
             break;
           case 'end':
-            console.log(message.event);
+            console.log(`<:   ${channel}:  end`);
             res.end();
             break;
           case 'error':
-            console.log(message.event);
+            console.log(`<:   ${channel}:  error`);
             res.writeHead(502, "Invalid gateway", {'content-type': 'application/json; charset=utf-8'});
             res.write(JSON.stringify(message.data, undefined, 3));
             res.end();
             break;
           default:
-            console.log(message.event);
-            console.error(`Unknown message type ${message.event}.`);
+            console.error(`<:  ${channel}:  Unknown message type ${message.event}.`);
             websocket_client.close();
             break;
         }
@@ -83,9 +82,8 @@ class Api extends Object {
     ['method', 'headers']
       .forEach((propertyName)=>request_data[propertyName]=req[propertyName]);
     request_data.body = req.body;
-    console.log(request_data.body);
     request_data.url = resource_path;
-    console.log(`Sending to ${client_id} req_id: ${req_id} to ${websocket_client.id}`);
+    console.log(` :>  ${channel}:  ${req.method} ${req.url}`);
     websocket_client.send(JSON.stringify({
       channel: channel,
       id: req_id,
@@ -96,22 +94,22 @@ class Api extends Object {
   get request_handler() {
     return (function (req, res) {
       req.body = '';
-      try {
         // FIXME: this will not work for bigger request body. the stream needs to be forwarded
         req.on('data', (chunk) => req.body += chunk);
         req.on('end', () => {
-          this._request_handler(req, res);
+          try {
+            this._request_handler(req, res);
+          } catch(err) {
+            if (err instanceof HttpError) {
+              console.log(`! ${req.url} Error ${err}`);
+              res.writeHead(err.code, {'content-type': 'text/plain; charset=utf-8'});
+              res.write(err.toString());
+              res.end();
+            } else {
+              throw err;
+            }
+          }
         });
-      } catch(err) {
-        if (err instanceof HttpError) {
-          console.log(`Error ${err}`);
-          res.writeHead(err.code, {'content-type': 'text/plain; charset=utf-8'});
-          res.write(err.toString());
-          res.end();
-        } else {
-          throw err;
-        }
-      }
     }).bind(this);
   }
 }

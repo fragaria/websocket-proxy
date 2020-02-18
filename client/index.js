@@ -29,8 +29,9 @@ class RequestForwarder extends Object {
 
   fire_request(message, ) {
     const ireq = message.request;
+    console.log(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
     let oreq_uri = new URL(this._forward_base_uri.toString()); // clone the original uri
-    oreq_uri.pathname = path.posix.join(oreq_uri.pathname, ireq.url);
+    oreq_uri.href = path.posix.join(oreq_uri.href, ireq.url);
     const req_params = {
       method: ireq.method,
       headers: ireq.headers,
@@ -38,6 +39,8 @@ class RequestForwarder extends Object {
     let _send = this._send.bind(this);
     let sender = function sender(event_id) {
       return function (data) {
+        if (event_id != 'data') 
+          console.log(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
         _send({
           channel: message.channel,
           id: message.id,
@@ -46,8 +49,10 @@ class RequestForwarder extends Object {
         })
       }
     }
+    console.log(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.pathname}`);
     const req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
       res.setEncoding('utf8');
+      console.log(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
       sender('headers')({
         statusCode: res.statusCode,
         statusMessage: res.statusMessage,
@@ -57,17 +62,13 @@ class RequestForwarder extends Object {
       res.on('end', sender('end'));
     });
     req.on('error', sender('error'));
-    console.log(`C > ${oreq_uri.toString()}`);
     if (ireq.body) {
-      console.log(`Sending body ${ireq.body}`);
       req.write(ireq.body);
     }
     req.end();
-    console.log(`End of request ${message.channel}`);
   }
 
   _send(data) {
-    console.log(`Sending ${JSON.stringify(data)}`)
     this._ws.send(data);
   }
 
@@ -84,7 +85,10 @@ ws.on('open', function open() {
 
   ws.send({data:"Hallo."});
   ws.on("message", function (message) {
-    console.log(`Got message\n------\n${message}\n------\n\n`);
     request_forwarder.on_message(message);
+  });
+  ws.on("close", function onClose() {
+    console.log("Client connection closed.");
+    process.exit()
   });
 });
