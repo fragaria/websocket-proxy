@@ -10,7 +10,7 @@ class KeyAuthenticator extends Object {
 
     authenticate(request, callback) {
       console.log(`Authenticating request ${request} on ${request.url}.`);
-      const match = /^\/ws\/pill\/(?<client_key>.*)$/.exec(request.url);
+      const match = /^\/ws\/(?<client_key>.*)$/.exec(request.url);
       if (! match) return callback(new Error("Unknown url."));
       if (this.allowed_keys.has(match.groups.client_key)) {
         console.log(`Key ${match.groups.client_key} accepted`);
@@ -23,6 +23,7 @@ class KeyAuthenticator extends Object {
 
     onConnected (ws, client) {
         this._clients_by_id[client.key] = ws;
+        ws.id = client.key;
     }
 
     clientFromId (id) {

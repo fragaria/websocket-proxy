@@ -5,5 +5,6 @@ INSTALLATION
     cd ws_rev_proxy
     npm install
     node run server &
-    node run client kpz-1 <forward-to-host> <forward-to-port> & # forward-to-* points to a server to forward http to
-    curl localhost:8080/api/kpz-1<path> # path is the path to get from <forward-to-host>
+    node run client <client-key> <server_host>:<server_port> <forward_to_base_uri> &  # forward-to-* points to a server to forward http to
+    client_key=kpz-1
+    curl localhost:8080/api/$client_key # path is the path to get from <forward-to-host>

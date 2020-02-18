@@ -85,6 +85,7 @@ class Api extends Object {
     request_data.body = req.body;
     console.log(request_data.body);
     request_data.url = resource_path;
+    console.log(`Sending to ${client_id} req_id: ${req_id} to ${websocket_client.id}`);
     websocket_client.send(JSON.stringify({
       channel: channel,
       id: req_id,

@@ -1,28 +1,37 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
+const path = require('path');
 const http = require('http');
 const WebSocket = require('ws');
-const ws_ = new WebSocket(`ws://localhost:8080/ws/pill/${process.argv[2]}`);
 const WsJsonProtocol = require('../lib/ws-json');
+
+const client_key = process.argv[2];
+const server_host_port = process.argv[3];
+const forward_base_uri = process.argv[4];
+
+if (client_key === undefined) {
+  throw new Error("Missing client key.");
+}
+
+const ws_ = new WebSocket(`ws://${server_host_port}/ws/${client_key}`);
 const ws = new WsJsonProtocol(ws_);
-const forward_host = process.argv[3];
-const forward_port = process.argv[4];
 
 class RequestForwarder extends Object {
-  constructor(ws, host, port) {
+  constructor(ws, forward_base_uri) {
     super();
-    if (!host || !port) throw new Error("Host and port are required arguments.");
-    this._forward_host = host;
-    this._forward_port = port;
+    if (!forward_base_uri) throw new Error("Missing the base uri to forward to.");
+    let parsed_uri = new URL(forward_base_uri);
+    if (parsed_uri.search) throw new Error("Search path is not implemented yet for forward base uri.");
+    if (!parsed_uri.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsed_uri.protocol}).`);
+    this._forward_base_uri = parsed_uri;
     this._ws = ws;
   }
 
   fire_request(message, ) {
     const ireq = message.request;
+    let oreq_uri = new URL(this._forward_base_uri.toString()); // clone the original uri
+    oreq_uri.pathname = path.posix.join(oreq_uri.pathname, ireq.url);
     const req_params = {
-      host: this._forward_host,
-      port: this._forward_port,
-      path: ireq.url,
       method: ireq.method,
       headers: ireq.headers,
     }
@@ -37,7 +46,7 @@ class RequestForwarder extends Object {
         })
       }
     }
-    const req = http.request(req_params, function handleResponse(res) {
+    const req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
       res.setEncoding('utf8');
       sender('headers')({
         statusCode: res.statusCode,
@@ -48,6 +57,7 @@ class RequestForwarder extends Object {
       res.on('end', sender('end'));
     });
     req.on('error', sender('error'));
+    console.log(`C > ${oreq_uri.toString()}`);
     if (ireq.body) {
       console.log(`Sending body ${ireq.body}`);
       req.write(ireq.body);
@@ -57,8 +67,8 @@ class RequestForwarder extends Object {
   }
 
   _send(data) {
-    console.log(`Sending ${message}`)
-    this._ws.send(message);
+    console.log(`Sending ${JSON.stringify(data)}`)
+    this._ws.send(data);
   }
 
   on_message(message) {
@@ -69,7 +79,7 @@ class RequestForwarder extends Object {
 
 
 ws.on('open', function open() {
-  const request_forwarder = new RequestForwarder(ws, forward_host, forward_port);
+  const request_forwarder = new RequestForwarder(ws, forward_base_uri);
   console.log("Client connection openned.");
 
   ws.send({data:"Hallo."});

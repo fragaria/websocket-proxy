@@ -6,7 +6,7 @@ const WebSocket = require('ws');
 const Api = require('./api');
 const KeyAuthenticator = require('./authenticator');
 const authenticator = new KeyAuthenticator(['kpz-1', 'kpz-2', 'kpz-3']);
-const server = http.createServer(
+let server = http.createServer(
   new Api(
     '/api',
     authenticator.clientFromId.bind(authenticator)
@@ -15,6 +15,9 @@ const server = http.createServer(
 const wss = new WebSocket.Server({ noServer: true });
 
 
+let server_port = process.argv[2];
+
+if (! server_port) server_port=8000;
 /*
  * @authenticator ... function (request, callback) which calls callback(err, client).
  *                    `err` is empty on success and client which should be an object with `key` property.
@@ -42,8 +45,9 @@ function createServer(authenticator) {
 
       wss.handleUpgrade(request, socket, head, function done(ws) {
         console.log("Emitting ws connection");
+        ws.send(JSON.stringify({"data": "ping"}));
         authenticator.onConnected(ws, client);
-        ws.client = client;
+        ws.client_object = client;
         wss.emit('connection', ws, request, client);
       });
     });
@@ -51,5 +55,16 @@ function createServer(authenticator) {
   return server;
 }
 
-createServer(authenticator)
-  .listen(8080);
+server = createServer(authenticator)
+server.on("listening", function onListening() {
+  let addr = server.address();
+  console.log(`
+    Listening on ${addr.address}:${addr.port}.
+    To connect clients run:
+
+    node client <client-key> <server-host>:${addr.port} <uri-to-redirect-to>
+    `);
+
+});
+server.listen(server_port);
+
