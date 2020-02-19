@@ -1,7 +1,8 @@
-'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
+'use strict';
 const path = require('path');
 const http = require('http');
+const checksum = require('../lib').checksum;
 const WebSocket = require('ws');
 const WsJsonProtocol = require('../lib/ws-json');
 
@@ -36,8 +37,11 @@ class RequestForwarder extends Object {
         let _send = this._send.bind(this);
         let sender = function sender(event_id) {
           return function (data) {
-            if (event_id != 'data') 
+            if (event_id == 'data') {
+              console.log(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname} ${data.length} ${checksum(data)}`);
+            } else {
               console.log(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
+            }
             _send({
               channel: message.channel,
               id: message.id,
@@ -48,7 +52,7 @@ class RequestForwarder extends Object {
         }
         console.log(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.toString()}`);
         req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
-          res.setEncoding('utf8');
+          // res.setEncoding('utf8');
           console.log(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
           sender('headers')({
             statusCode: res.statusCode,
@@ -65,7 +69,9 @@ class RequestForwarder extends Object {
         req = this._activeChannels[message.channel];
         if (req) {
             try {
-                console.log(`  :> DATA[${message.data}]`);
+                if (message.data instanceof Object) {
+                    message.data = Buffer.from(message.data);
+                console.log(`  :> ${digest(message.data)}]`);
                 req.write(message.data);
             } catch(err) {
                 console.log('data is object', message);

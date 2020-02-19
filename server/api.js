@@ -1,6 +1,7 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const REQ_SIZE_LIMIT = 1024*1024;
+const checksum = require('../lib').checksum;
 const uuid = require('uuid');
 const { HttpError, BadGateway, NotFound } = require('./HttpError');
 
@@ -27,12 +28,17 @@ class ForwardedRequest extends Object {
   }
 
   on_headers(message) {
-      console.log(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage} / ${message.event} ${this.request.method} ${this.request.url}`);
+      console.log(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage}
+        ${JSON.stringify(message.data.headers)}
+        / ${message.event} ${this.request.method} ${this.request.url}`);
       this.response.writeHead(message.data.statusCode, message.data.statusMessage, message.data.headers);
   }
 
   on_data(message) {
-      // console.log(`<:   ${this.channelUrl}:  data ${message.data.length}`);
+      if (message.data instanceof Object) {
+        message.data = Buffer.from(message.data)
+      }
+      console.log(`<:   ${this.channelUrl}:  data ${checksum(message.data)}`);
       this.response.write(message.data);
   }
 
@@ -60,8 +66,8 @@ class ForwardedRequest extends Object {
   }
 
   resendDataChunk(chunk) {
-    console.log(`  :> ${this.channelUrl} data`);
-    this.sendMessage('data', chunk.toString());
+    console.log(`  :> ${this.channelUrl} data${checksum(chunk)}`);
+    this.sendMessage('data', chunk.toString()); // FIXME: is it binary safe?
   }
 
   resendError(error) {
