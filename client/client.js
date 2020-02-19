@@ -119,6 +119,22 @@ class RequestForwarder extends Object {
   }
 }
 
+
+class WathDog extends Object {
+    constructor(requestForwarder) {
+        super();
+        this._clock = setInterval(this.tick.bind(this), 5000);
+        this.requestForwarder = requestForwarder;
+    }
+
+    tick() {
+      console.log('\n');
+      console.log(this.requestForwarder._activeChannels);       
+      console.log('\n');
+      process
+    }
+}
+
 class WebSockProxyClient extends Object {
 
     constructor(client_key) {
@@ -132,6 +148,7 @@ class WebSockProxyClient extends Object {
 
         ws.on('open', function open() {
           const request_forwarder = new RequestForwarder(ws, forward_to);
+          // const watchDog = new WathDog(request_forwarder);
           console.log("Client connection openned.");
 
           ws.send({data:"Hallo."});
