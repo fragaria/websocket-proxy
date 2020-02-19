@@ -135,9 +135,7 @@ class WebSockProxyClient extends Object {
           console.log("Client connection openned.");
 
           ws.send({data:"Hallo."});
-          ws.on("message", function (message) {
-            request_forwarder.on_message(message);
-          });
+          ws.on("message", request_forwarder.on_message(message).bind(request_forwarder));
           ws.on("close", function onClose() {
             console.log("Client connection closed.");
           });

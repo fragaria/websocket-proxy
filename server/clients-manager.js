@@ -1,6 +1,7 @@
-'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
+'use strict';
 
+const checksum = require('../lib').checksum;
 const {BadRequest, Unauthorized} = require('./HttpError');
 
 class ClientsManager extends Object {
@@ -23,7 +24,7 @@ class ClientsManager extends Object {
       if (this.clientFromId(match.groups.client_key)) return callback(new BadRequest("The key is already used by another client."));
       if (this.allowed_keys === true || this.allowed_keys.has(match.groups.client_key)) {
         console.log(`Key ${match.groups.client_key} accepted`);
-        callback(null, {"key": match.groups.client_key});
+        callback(null, {"id": checksum(match.groups.client_key)});
       } else {
         console.log('Invalid key');
         callback(new Unauthorized("Invalid key."), null);
@@ -31,12 +32,12 @@ class ClientsManager extends Object {
     }
 
     onConnected (ws, client) {
-        this._clients_by_id[client.key] = ws;
-        ws.id = client.key;
+        this._clients_by_id[client.id] = ws;
+        ws.id = client.id;
     }
 
     onClose (ws, client) {
-        delete this._clients_by_id[client.key];
+        delete this._clients_by_id[client.id];
     }
 
     clientFromId (id) {
