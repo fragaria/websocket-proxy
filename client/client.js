@@ -71,6 +71,7 @@ class RequestForwarder extends Object {
             try {
                 if (message.data instanceof Object) {
                     message.data = Buffer.from(message.data);
+                }
                 console.log(`  :> ${digest(message.data)}]`);
                 req.write(message.data);
             } catch(err) {
