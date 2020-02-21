@@ -6,7 +6,7 @@ class HttpError extends Error {
     super();
     this.code = code ? code : this._code;
     this.message = message ? message : this._msg;
-    this.description = description;
+    this.description = description ? description : 'N/A';
   }
 
   get _code() { return 500; }
@@ -18,7 +18,11 @@ class HttpError extends Error {
 
   toResponse(res) {
       res.writeHead(this.code, {'content-type': 'application/json; charset=utf-8'});
-      res.write(this.description ? this.description : this.message);
+      res.write(JSON.stringify({
+        code: this.code,
+        message: this.message,
+        description: this.description,
+      }));
       res.end();
   }
 }

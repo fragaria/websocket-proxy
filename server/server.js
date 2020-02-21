@@ -26,7 +26,7 @@ function setupWebsocketServer(httpServer, authenticator) {
 
   httpServer.on('upgrade', function upgrade(request, socket, head) {
     console.log("Upgrading protocol.");
-    authenticator.authenticate(request, (err, client) => {
+    authenticator.authenticate(request, socket, (err, client) => {
       if (err || !client) {
         console.log("Destroying connection");
         socket.destroy();
@@ -35,7 +35,6 @@ function setupWebsocketServer(httpServer, authenticator) {
 
       webSocketServer.handleUpgrade(request, socket, head, function done(ws) {
         console.log("Emitting ws connection");
-        ws.send(JSON.stringify({"data": "ping"}));
         ws.on('close', function onClose() {
           console.log(`Client ${client.key} closed connection.`);
           authenticator.onClose(ws, client);

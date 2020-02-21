@@ -1,25 +1,31 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const REQ_SIZE_LIMIT = 1024*1024;
-const checksum = require('../lib').checksum;
+const { checksum } = require('../lib');
 const uuid = require('uuid');
 const { HttpError, BadGateway, NotFound } = require('./HttpError');
+const { packMessage, unpackMessage} = require('./ws-message');
+
+const MESSAGE_FORMAT = [
+  {name: 'channel', type: 'string', size: '100'},
+  {name: 'event', type: 'string', size: '30'},
+  {name: 'data', type: 'buffer'},
+]
 
 
 class ForwardedRequest extends Object {
-  constructor(request, response, resource_path, client_websocket, client_id) {
+  constructor(request, response, resource_path, client) {
     super();
-    if (! client_websocket) throw new BadGateway();
+    const self = this;
+    if (! client.webSocket) throw new BadGateway();
     this.request = request;
     this.response = response;
     this.id = uuid.v4();
-    this.client_websocket = client_websocket;
+    this.client = client;
     this.target_path = resource_path;
+    this.channelUrl = '/req/' + checksum(this.id, 6);
 
-    this.channelUrl = `/req/${client_id}/${this.id}`;
-
-    this.resendHeader();
-
+    this.resendHeaders();
   }
 
   handleResponseMessage(message, destroyCallback) {
@@ -55,7 +61,7 @@ class ForwardedRequest extends Object {
       destroyCallback();
   }
 
-  resendHeader() {
+  resendHeaders() {
     let request_data = {
       method: this.request.method,
       headers: this.request.headers,
@@ -80,11 +86,12 @@ class ForwardedRequest extends Object {
   }
 
   sendMessage(eventId, payload) {
-    this.client_websocket.send(JSON.stringify({
+    const message = {
       channel: this.channelUrl,
       event: eventId,
       data: payload,
-    }, undefined, 3));
+    };
+    this.client.webSocket.send(packMessage(message));
   }
 
 
@@ -101,18 +108,15 @@ class Api extends Object {
     this._path_prefix = path_prefix;
     this._clientsManager = clientsManager;
     this._activeChannels = {};
-    clientsManager.listenToMessages(this.messageDispatcher.bind(this));
+    this._activeClients = new Set();
+    this._onClientMessage = this.__onClientMessage.bind(this);
+    this._onClientClose = this._removeClient.bind(this);
   }
 
   
 
-  messageDispatcher(message, ws, client) {
-    try {
-      message = JSON.parse(message);
-    } catch(err) {
-      console.error(`Got unparsable message from ${client.key}.`);
-      return;
-    }
+  __onClientMessage(message, client) {
+    message = unpackMessage(message);
     const channelUrl = message.channel;
     const channel = this._activeChannels[channelUrl];
     if (channel) {
@@ -124,18 +128,37 @@ class Api extends Object {
     console.log(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
     let path_info = this._parse_request_path(req);
     if (!path_info || !path_info.id || ! path_info.resource) {
-      return new NotFound(`Invalid url ${req.url}.`).toResponse(res);
+      throw new NotFound(`Invalid url ${req.url}.`).toResponse(res);
     }
-    const client_id = path_info.id
+    const client_id = checksum(path_info.id);
     const resource_path = path_info.resource;
-    const client_websocket = this._clientsManager.clientFromId(client_id);
-    const requestInstance = new ForwardedRequest(req, res, resource_path, client_websocket, client_id);
+    const client = this._clientsManager.clientFromId(client_id);
+    if (! client ) {
+      throw new BadGateway(`Client with id ${client_id} is not connected.`);
+    }
+    if (!this._activeClients.has(client.id)) {
+      this.registerClient(client);
+    }
+    const requestInstance = new ForwardedRequest(req, res, resource_path, client);
 
     this._activeChannels[requestInstance.channelUrl] = requestInstance;
 
     req.on('data', requestInstance.resendDataChunk.bind(requestInstance));
     req.on('end', requestInstance.resendEnd.bind(requestInstance));
     req.on('error', requestInstance.resendError.bind(requestInstance));
+  }
+
+  _removeClient(client) {
+    client.off('message', this._onClientMessage);
+    client.off('close', this._onClientClose);
+    this._activeClients.delete(client.id);
+  }
+
+  registerClient(client) {
+    const self = this;
+    this._activeClients.add(client.id);
+    client.on('message', this._onClientMessage);
+    client.on('close', this._onClientClose);
   }
 
 
@@ -149,11 +172,9 @@ class Api extends Object {
         } catch(err) {
           if (err instanceof HttpError) {
             console.log(`! ${req.url} Error ${err}`);
-            res.writeHead(err.code, {'content-type': 'text/plain; charset=utf-8'});
-            res.write(err.toString());
-            res.end();
+            err.toResponse(res);
           } else {
-            throw err;
+            throw (err);
           }
         }
     }).bind(this);

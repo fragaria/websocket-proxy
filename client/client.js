@@ -5,6 +5,8 @@ const http = require('http');
 const checksum = require('../lib').checksum;
 const WebSocket = require('ws');
 const WsJsonProtocol = require('../lib/ws-json');
+const { BufferStruct, BufferStructType } = require('../lib/buffer-struct');
+const { Messanger } = require('../server/ws-message');
 
 
 class RequestForwarder extends Object {
@@ -44,7 +46,6 @@ class RequestForwarder extends Object {
             }
             _send({
               channel: message.channel,
-              id: message.id,
               event: event_id,
               data: data,
             })
@@ -72,7 +73,7 @@ class RequestForwarder extends Object {
                 if (message.data instanceof Object) {
                     message.data = Buffer.from(message.data);
                 }
-                console.log(`  :> ${digest(message.data)}]`);
+                console.log(`  :> ${checksum(message.data)}]`);
                 req.write(message.data);
             } catch(err) {
                 console.log('data is object', message);
@@ -107,14 +108,13 @@ class RequestForwarder extends Object {
   }
 
   _send(data) {
-    this._ws.send(data);
+    this._ws.send(data.channel, data.event, data.data);
   }
 
   on_message(message) {
-    if (!message.channel || message.channel.indexOf('/req/') != 0) {
-      return;
-    } else {
+    if (message.channel && message.channel.indexOf('/req/') == 0) {
       this.handle_request(message);
+    } else {
     }
   }
 }
@@ -144,15 +144,15 @@ class WebSockProxyClient extends Object {
 
     connect(host_port, {forward_to = 'http://localhost', websocket_path = '/ws'}={}) {
         const ws_ = new WebSocket(`ws://${host_port}${websocket_path}/${this.key}`);
-        const ws = new WsJsonProtocol(ws_);
+        const ws = new Messanger(ws_);
 
         ws.on('open', function open() {
           const request_forwarder = new RequestForwarder(ws, forward_to);
           // const watchDog = new WathDog(request_forwarder);
           console.log("Client connection openned.");
 
-          ws.send({data:"Hallo."});
-          ws.on("message", request_forwarder.on_message(message).bind(request_forwarder));
+          ws.send('/', 'test', {data:"Hallo."});
+          ws.on("message", request_forwarder.on_message.bind(request_forwarder));
           ws.on("close", function onClose() {
             console.log("Client connection closed.");
           });
