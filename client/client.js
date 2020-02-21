@@ -2,11 +2,19 @@
 'use strict';
 const path = require('path');
 const http = require('http');
-const checksum = require('../lib').checksum;
+const { checksum } = require('../lib');
+const statusBar = new (require('../lib/utils').ConsoleStatusBar)(1, 1, 100);
 const WebSocket = require('ws');
 const WsJsonProtocol = require('../lib/ws-json');
 const { BufferStruct, BufferStructType } = require('../lib/buffer-struct');
 const { Messanger } = require('../server/ws-message');
+
+function detail_info() {
+  // console.log.apply(console, arguments);
+}
+function info() {
+  console.log.apply(console, arguments);
+}
 
 
 class RequestForwarder extends Object {
@@ -17,19 +25,28 @@ class RequestForwarder extends Object {
     let parsed_uri = new URL(forward_base_uri);
     if (parsed_uri.search) throw new Error("Search path is not implemented yet for forward base uri.");
     if (!parsed_uri.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsed_uri.protocol}).`);
-      console.log(forward_base_uri);
+      detail_info(forward_base_uri);
     this._forward_base_uri = parsed_uri;
     this._ws = ws;
     this._activeChannels = {};
+    this.state = ['> headers', '-'];
+  }
+
+  setState(ws, http) {
+    if (ws) this.state[0] = ws;
+    if (http) this.state[1] = http;
+    // statusBar.write(`${this.state[0]} | ${this.state[1]} ${this.parsed_uri}`);
   }
 
   handle_request(message) {
+    const self = this;
     const eventId = message.event;
     let req;
     switch(eventId) {
       case 'headers':
+        this.setState('> headers');
         const ireq = message.data;
-        console.log(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
+        info(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
         let oreq_uri = new URL(this._forward_base_uri.toString()); // clone the original uri
         oreq_uri.href = path.posix.join(oreq_uri.href, ireq.url);
         const req_params = {
@@ -40,10 +57,11 @@ class RequestForwarder extends Object {
         let sender = function sender(event_id) {
           return function (data) {
             if (event_id == 'data') {
-              console.log(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname} ${data.length} ${checksum(data)}`);
+              detail_info(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname} ${data.length}`);
             } else {
-              console.log(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
+              detail_info(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
             }
+            self.setState('< ' + event_id);
             _send({
               channel: message.channel,
               event: event_id,
@@ -51,10 +69,12 @@ class RequestForwarder extends Object {
             })
           }
         }
-        console.log(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.toString()}`);
+        detail_info(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.toString()}`);
+        this.setState('> headers', '> headers ');
         req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
           // res.setEncoding('utf8');
-          console.log(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
+          self.setState(null, '< headers ');
+          detail_info(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
           sender('headers')({
             statusCode: res.statusCode,
             statusMessage: res.statusMessage,
@@ -67,13 +87,11 @@ class RequestForwarder extends Object {
         this._registerChannel(message.channel, req);
         break;
       case 'data':
+        this.setState('> data');
         req = this._activeChannels[message.channel];
         if (req) {
             try {
-                if (message.data instanceof Object) {
-                    message.data = Buffer.from(message.data);
-                }
-                console.log(`  :> ${checksum(message.data)}]`);
+                detail_info(`  :> `);
                 req.write(message.data);
             } catch(err) {
                 console.log('data is object', message);
@@ -84,6 +102,7 @@ class RequestForwarder extends Object {
         }
         break;
       case 'end':
+        this.setState('> end');
         req = this._activeChannels[message.channel];
         if (req) {
             req.end();
@@ -128,9 +147,9 @@ class WathDog extends Object {
     }
 
     tick() {
-      console.log('\n');
-      console.log(this.requestForwarder._activeChannels);       
-      console.log('\n');
+      detail_info('\n');
+      detail_info(this.requestForwarder._activeChannels);       
+      detail_info('\n');
       process
     }
 }

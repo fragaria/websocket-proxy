@@ -20,7 +20,7 @@ function setupWebsocketServer(httpServer, authenticator) {
        console.log(`- ${client.id}`);
     });
     ws.on('message', function message(msg) {
-      // console.log(`Received message from client ${client.key}`);
+      // console.log(`Received message from client ${client.id}`);
     });
   });
 
@@ -36,7 +36,7 @@ function setupWebsocketServer(httpServer, authenticator) {
       webSocketServer.handleUpgrade(request, socket, head, function done(ws) {
         console.log("Emitting ws connection");
         ws.on('close', function onClose() {
-          console.log(`Client ${client.key} closed connection.`);
+          console.log(`Client ${client.id} closed connection.`);
           authenticator.onClose(ws, client);
         });
         ws.on('message', (message)=>authenticator.onMessage(message, ws, client));
