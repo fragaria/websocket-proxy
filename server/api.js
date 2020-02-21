@@ -1,7 +1,7 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const REQ_SIZE_LIMIT = 1024*1024;
-const { checksum } = require('../lib');
+const { checksum, debug } = require('../lib');
 const uuid = require('uuid');
 const { HttpError, BadGateway, NotFound } = require('./HttpError');
 const { packMessage, unpackMessage} = require('./ws-message');
@@ -44,7 +44,7 @@ class ForwardedRequest extends Object {
       if (message.data instanceof Object) {
         message.data = Buffer.from(message.data)
       }
-      console.log(`<:   ${this.channelUrl}:  data ${checksum(message.data)}`);
+      debug(`<:   ${this.channelUrl}:  data ${checksum(message.data)}`);
       this.response.write(message.data);
   }
 
@@ -58,7 +58,7 @@ class ForwardedRequest extends Object {
   on_error(message, destroyCallback) {
       console.log(`<:   ${this.channelUrl}:  error`);
       new BadGateway(JSON.stringify(message.data, undefined, 3)).toResponse(this.response);
-      destroyCallback();
+      this.on_end(message, destroyCallback);
   }
 
   resendHeaders() {
@@ -67,12 +67,12 @@ class ForwardedRequest extends Object {
       headers: this.request.headers,
       url: this.target_path,
     }
-    console.log(` :>  ${this.channelUrl}:  ${this.request.method} ${this.request.url}`);
+    debug(` :>  ${this.channelUrl}:  ${this.request.method} ${this.request.url}`);
     this.sendMessage('headers', request_data); 
   }
 
   resendDataChunk(chunk) {
-    console.log(`  :> ${this.channelUrl} data${checksum(chunk)}`);
+    debug(`  :> ${this.channelUrl} data${checksum(chunk)}`);
     this.sendMessage('data', chunk.toString()); // FIXME: is it binary safe?
   }
 
@@ -128,7 +128,7 @@ class Api extends Object {
     console.log(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
     let path_info = this._parse_request_path(req);
     if (!path_info || !path_info.id || ! path_info.resource) {
-      throw new NotFound(`Invalid url ${req.url}.`).toResponse(res);
+      throw new NotFound(`Invalid url ${req.url}.`);
     }
     const client_id = checksum(path_info.id);
     const resource_path = path_info.resource;

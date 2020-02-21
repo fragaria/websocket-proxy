@@ -70,6 +70,7 @@ class RequestForwarder extends Object {
           }
         }
         detail_info(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.toString()}`);
+        this._registerChannel(message.channel, req);
         this.setState('> headers', '> headers ');
         req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
           // res.setEncoding('utf8');
@@ -81,10 +82,12 @@ class RequestForwarder extends Object {
             headers: res.headers,
           });
           res.on('data', sender('data'));
-          res.on('end', sender('end'));
+          res.on('end', () => {
+            sender('end');
+            this._destroyChannel(message.channel);
+          });
         });
         req.on('error', sender('error'));
-        this._registerChannel(message.channel, req);
         break;
       case 'data':
         this.setState('> data');
@@ -94,7 +97,6 @@ class RequestForwarder extends Object {
                 detail_info(`  :> `);
                 req.write(message.data);
             } catch(err) {
-                console.log('data is object', message);
                 throw err;
             }
         } else {
@@ -119,11 +121,28 @@ class RequestForwarder extends Object {
   _registerChannel(channelUrl, request) {
     this._activeChannels[channelUrl] = request;
     let self=this;
-    setTimeout(()=>self._destroyChannel(channelUrl), this.maxChannelLivespan);
+    setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
+  }
+
+  _onChannelTimeout(channelUrl) {
+    info(`Connection timeout ${channelUrl}`);
+    if (this._destroyChannel(channelUrl)) {
+      // channel exists aftert timeout
+      this._send({
+        channel: channelUrl,
+        event: 'error',
+        data: 'Connection timeout',
+      });
+    }
   }
 
   _destroyChannel(channelUrl) {
-      if (this._activeChannels[channelUrl]) delete this._activeChannels[channelUrl];
+      if (this._activeChannels[channelUrl]) {
+        delete this._activeChannels[channelUrl];
+        return true;
+      } else {
+        return false;
+      }
   }
 
   _send(data) {
