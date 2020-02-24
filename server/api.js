@@ -35,7 +35,6 @@ class ForwardedRequest extends Object {
 
   on_headers(message) {
       console.log(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage}
-        ${JSON.stringify(message.data.headers)}
         / ${message.event} ${this.request.method} ${this.request.url}`);
       this.response.writeHead(message.data.statusCode, message.data.statusMessage, message.data.headers);
   }
