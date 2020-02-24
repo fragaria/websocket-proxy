@@ -24,8 +24,8 @@ function die(message, {edify=true}={}) {
 }
 
 const client_key = process.argv[2] ? process.argv[2] : process.env.WS_PROXY_KEY;
-const ws_server = process.argv[3] ? process.argv[3] : process.env.WS_PROXY_SERVER;
-const forward_to = process.argv[4] ? process.argv[4] ? process.argv[4] : process.env.ws_PROXY_FORWARD_TO;
+const ws_server =  process.argv[3] ? process.argv[3] : process.env.WS_PROXY_SERVER;
+const forward_to = process.argv[4] ? process.argv[4] : process.env.WS_PROXY_FORWARD_TO;
 
 
 client_key || die("Missing client key.");
