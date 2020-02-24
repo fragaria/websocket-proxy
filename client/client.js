@@ -125,7 +125,7 @@ class RequestForwarder extends Object {
   }
 
   _onChannelTimeout(channelUrl) {
-    if (!this._destroyChannel(channelUrl)) {
+    if (this._destroyChannel(channelUrl)) {
       // channel exists aftert timeout
       info(`Connection timeout ${channelUrl}`);
       this._send({
