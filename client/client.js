@@ -121,7 +121,7 @@ class RequestForwarder extends Object {
   _registerChannel(channelUrl, request) {
     this._activeChannels[channelUrl] = request;
     let self=this;
-    // setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
+    setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
   }
 
   _onChannelTimeout(channelUrl) {
@@ -138,7 +138,7 @@ class RequestForwarder extends Object {
 
   _destroyChannel(channelUrl) {
       if (this._activeChannels[channelUrl]) {
-        console.log(`del channel ${channelUrl}`);
+        detail_info(`del channel ${channelUrl}`);
         delete this._activeChannels[channelUrl];
         return true;
       } else {
