@@ -10,7 +10,7 @@ const { BufferStruct, BufferStructType } = require('../lib/buffer-struct');
 const { Messanger } = require('../server/ws-message');
 
 function detail_info() {
-  // console.log.apply(console, arguments);
+  if (process.env.DEBUG) console.log.apply(console, arguments);
 }
 function info() {
   console.log.apply(console, arguments);
@@ -70,7 +70,6 @@ class RequestForwarder extends Object {
           }
         }
         detail_info(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.toString()}`);
-        this._registerChannel(message.channel, req);
         this.setState('> headers', '> headers ');
         req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
           // res.setEncoding('utf8');
@@ -84,9 +83,10 @@ class RequestForwarder extends Object {
           res.on('data', sender('data'));
           res.on('end', () => {
             sender('end');
-            this._destroyChannel(message.channel);
+            self._destroyChannel(message.channel);
           });
         });
+        this._registerChannel(message.channel, req);
         req.on('error', sender('error'));
         break;
       case 'data':
@@ -100,7 +100,7 @@ class RequestForwarder extends Object {
                 throw err;
             }
         } else {
-            console.error(`Channel ${message.channel} not found. Did it expire?`);
+            console.error(`Channel ${message.channel} not found. Did it expire (on data sent)?`);
         }
         break;
       case 'end':
@@ -110,7 +110,7 @@ class RequestForwarder extends Object {
             req.end();
             this._destroyChannel(message.channel);
         } else {
-            console.error(`Channel ${message.channel} not found. Did it expire?`);
+            console.error(`Channel ${message.channel} not found. Did it expire (on response end)?`);
         }
         break;
       default:
@@ -119,15 +119,16 @@ class RequestForwarder extends Object {
   }
 
   _registerChannel(channelUrl, request) {
+    console.log(`register channel ${channelUrl}`, request);
     this._activeChannels[channelUrl] = request;
     let self=this;
-    setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
+    // setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
   }
 
   _onChannelTimeout(channelUrl) {
-    info(`Connection timeout ${channelUrl}`);
-    if (this._destroyChannel(channelUrl)) {
+    if (!this._destroyChannel(channelUrl)) {
       // channel exists aftert timeout
+      info(`Connection timeout ${channelUrl}`);
       this._send({
         channel: channelUrl,
         event: 'error',
@@ -138,6 +139,7 @@ class RequestForwarder extends Object {
 
   _destroyChannel(channelUrl) {
       if (this._activeChannels[channelUrl]) {
+        console.log(`del channel ${channelUrl}`);
         delete this._activeChannels[channelUrl];
         return true;
       } else {

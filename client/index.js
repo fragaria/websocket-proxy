@@ -29,7 +29,14 @@ const forward_to = process.argv[4] ? process.argv[4] : process.env.WS_PROXY_FORW
 
 
 client_key || die("Missing client key.");
-ws_server || die("Missing server host:port.");
+ws_server || die("Missing server uri.");
+forward_to || die("Missing forwarding location.");
+
+console.log(`
+client_key: ${client_key}
+ws_server: ${ws_server}
+forward_to: ${forward_to}
+`);
 
 
 new WebSockProxyClient(client_key)
@@ -39,6 +46,9 @@ new WebSockProxyClient(client_key)
 
       Make sure the server is running on the address port specified?
       `);
+  })
+  .on('open', function clientOnConnect() {
+    console.log(`Tunnel ${ws_server} -> ${forward_to} set up and ready.`);
   })
   .on('close', function clientOnClose() {
     console.log('Connection closed, exitting.');
