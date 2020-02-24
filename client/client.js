@@ -119,7 +119,6 @@ class RequestForwarder extends Object {
   }
 
   _registerChannel(channelUrl, request) {
-    console.log(`register channel ${channelUrl}`, request);
     this._activeChannels[channelUrl] = request;
     let self=this;
     // setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
