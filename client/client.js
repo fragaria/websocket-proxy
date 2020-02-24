@@ -20,7 +20,7 @@ function info() {
 class RequestForwarder extends Object {
   constructor(ws, forward_base_uri) {
     super();
-    this.maxChannelLivespan = 5000;  // in milliseconds
+    this.maxChannelLivespan = 30000;  // in milliseconds FIXME: configuration should live in config file
     if (!forward_base_uri) throw new Error("Missing the base uri to forward to.");
     let parsed_uri = new URL(forward_base_uri);
     if (parsed_uri.search) throw new Error("Search path is not implemented yet for forward base uri.");
@@ -52,6 +52,7 @@ class RequestForwarder extends Object {
         const req_params = {
           method: ireq.method,
           headers: ireq.headers,
+          search: ireq.search,
         }
         let _send = this._send.bind(this);
         let sender = function sender(event_id) {
@@ -69,7 +70,7 @@ class RequestForwarder extends Object {
             })
           }
         }
-        detail_info(` :> ${message.channel}:  ${ireq.method} ${oreq_uri.toString()}`);
+        detail_info(` :> ${message.channel}:  ${ireq.toString()} ${oreq_uri.toString()}`);
         this.setState('> headers', '> headers ');
         req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
           // res.setEncoding('utf8');
@@ -82,7 +83,7 @@ class RequestForwarder extends Object {
           });
           res.on('data', sender('data'));
           res.on('end', () => {
-            sender('end');
+            sender('end')();
             self._destroyChannel(message.channel);
           });
         });
