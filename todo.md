@@ -4,3 +4,5 @@
 - test GET with big data
 - configuration 
 - 
+
+reset client connection timeout on data (for long uploads)

@@ -23,19 +23,19 @@ function die(message, {edify=true}={}) {
   process.exit();
 }
 
-const client_key = process.argv[2];
-const server_host_port = process.argv[3];
-const forward_to = process.argv[4];
+const client_key = process.argv[2] ? process.argv[2] : process.env.WS_PROXY_KEY;
+const ws_server = process.argv[3] ? process.argv[3] : process.env.WS_PROXY_SERVER;
+const forward_to = process.argv[4] ? process.argv[4] ? process.argv[4] : process.env.ws_PROXY_FORWARD_TO;
 
 
 client_key || die("Missing client key.");
-server_host_port || die("Missing server host:port.");
+ws_server || die("Missing server host:port.");
 
 
 new WebSockProxyClient(client_key)
-  .connect(server_host_port, {forward_to: forward_to })
+  .connect(ws_server, {forward_to: forward_to })
   .on('error', function clientError() {
-    console.error(`Could not connect to remote server ${server_host_port}.
+    console.error(`Could not connect to remote server ${ws_server}.
 
       Make sure the server is running on the address port specified?
       `);

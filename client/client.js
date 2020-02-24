@@ -180,8 +180,8 @@ class WebSockProxyClient extends Object {
         this.key = client_key;
     }
 
-    connect(host_port, {forward_to = 'http://localhost', websocket_path = '/ws'}={}) {
-        const ws_ = new WebSocket(`ws://${host_port}${websocket_path}/${this.key}`);
+    connect(ws_server, {forward_to = 'http://localhost', websocket_path = '/ws'}={}) {
+        const ws_ = new WebSocket(`${ws_server}${websocket_path}/${this.key}`);
         const ws = new Messanger(ws_);
 
         ws.on('open', function open() {
