@@ -2,6 +2,8 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 
 const http = require('http');
+const config = require('../config');
+const { debug } = require('../lib/logger');
 const setupWebsocketServer = require('./server');
 const Api = require('./api');
 const ClientsManager = require('./clients-manager');
@@ -22,14 +24,20 @@ function usage() {
 `);
 }
 
-
-let [server_host, server_port] = process.argv[2].split(':', 2);
-if (server_port === undefined && !isNaN(server_host)) {
-  server_port = server_host;
-  server_host = '0.0.0.0';
+let server_host, server_port;
+if (process.argc > 1) {
+  [server_host, server_port] = process.argv[2].split(':', 2);
+  if (server_port === undefined && !isNaN(server_host)) {
+    server_port = config.server.port;
+    server_host = config.server.host;
+  }
+} else {
+  [server_host, server_port] = [config.server.host, config.server.port];
 }
 
-if (!server_port) server_port=8000;
+debug(`
+  config: ${server_host}:${server_port}
+`);
 
 const apiServer = new Api( '/api', clientsManager);
 const httpServer = http.createServer(apiServer.request_handler);

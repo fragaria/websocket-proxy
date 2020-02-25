@@ -1,10 +1,16 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const REQ_SIZE_LIMIT = 1024*1024;
-const { checksum, debug } = require('../lib');
-const uuid = require('uuid');
-const { HttpError, BadGateway, NotFound } = require('./HttpError');
-const { packMessage, unpackMessage} = require('./ws-message');
+
+const { checksum } = require('../lib'),
+      { getLogger } = require('../lib/logger'),
+      uuid = require('uuid'),
+      { HttpError, BadGateway, NotFound } = require('./HttpError'),
+      { packMessage, unpackMessage} = require('./ws-message');
+
+const debug    = getLogger.debug({prefix: '\u001b[33mS:d', postfix: '\u001b[0m\n'}),
+      info     = getLogger.info({prefix: '\u001b[32mS/i', postfix: '\u001b[0m\n'}),
+      warning  = getLogger.warning({prefix: '\u001b[31mS/w', postfix: '\u001b[0m\n'});
 
 const MESSAGE_FORMAT = [
   {name: 'channel', type: 'string', size: '100'},
@@ -34,7 +40,7 @@ class ForwardedRequest extends Object {
   }
 
   on_headers(message) {
-      console.log(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage}
+      debug(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage}
         / ${message.event} ${this.request.method} ${this.request.url}`);
       this.response.writeHead(message.data.statusCode, message.data.statusMessage, message.data.headers);
   }
@@ -48,14 +54,14 @@ class ForwardedRequest extends Object {
   }
 
   on_end(message, destroyCallback) {
-      console.log(`<:   ${this.channelUrl}:  end`);
+      debug(`<:   ${this.channelUrl}:  end`);
       this.response.end();
       destroyCallback();
       // TODO: cleanup / delete this instance
   }
 
   on_error(message, destroyCallback) {
-      console.log(`<:   ${this.channelUrl}:  error`);
+      debug(`<:   ${this.channelUrl}:  error`);
       new BadGateway(JSON.stringify(message.data, undefined, 3)).toResponse(this.response);
       this.on_end(message, destroyCallback);
   }
@@ -80,7 +86,7 @@ class ForwardedRequest extends Object {
   }
 
   resendEnd() {
-    console.log(`  :>${this.channelUrl} end`);
+    debug(`  :>${this.channelUrl} end`);
     this.sendMessage('end');
   }
 
@@ -99,7 +105,7 @@ class ForwardedRequest extends Object {
 class Api extends Object {
 
   constructor(path_prefix, clientsManager) {
-    console.log(`Starting API with path prefix '${path_prefix}'.`);
+    info(`Starting API with path prefix '${path_prefix}'.`);
     super();
     if (! path_prefix) {
       path_prefix = '/';
@@ -124,7 +130,7 @@ class Api extends Object {
   }
 
   _request_handler(req, res) {
-    console.log(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
+    info(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
     let path_info = this._parse_request_path(req);
     if (!path_info || !path_info.id || ! path_info.resource) {
       throw new NotFound(`Invalid url ${req.url}.`);
@@ -170,7 +176,7 @@ class Api extends Object {
           this._request_handler(req, res);
         } catch(err) {
           if (err instanceof HttpError) {
-            console.log(`! ${req.url} Error ${err}`);
+            warning(`! ${req.url} Error ${err}`);
             err.toResponse(res);
           } else {
             throw (err);

@@ -1,12 +1,13 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const WebSockProxyClient = require('./client').WebSockProxyClient;
+const config = require('../config');
 
 
 function usage() {
   console.log(`USAGE:
 
-    client <client-key> <server_host>[:<server_port>] [forward_to]
+    client <client-key> <server_host>[:<server_port>] [forwardTo]
 
     client-key    ... unique key to identify client on server
     server_host   ... hostname or ip address of websocket proxy server
@@ -23,32 +24,32 @@ function die(message, {edify=true}={}) {
   process.exit();
 }
 
-const client_key = process.argv[2] ? process.argv[2] : process.env.WS_PROXY_KEY;
-const ws_server =  process.argv[3] ? process.argv[3] : process.env.WS_PROXY_SERVER;
-const forward_to = process.argv[4] ? process.argv[4] : process.env.WS_PROXY_FORWARD_TO;
+const client_key = process.argv[2] ? process.argv[2] : config.client.key;
+const serverUrl =  process.argv[3] ? process.argv[3] : config.client.serverUrl;
+const forwardTo = process.argv[4] ? process.argv[4] : config.client.forwardTo;
 
 
 client_key || die("Missing client key.");
-ws_server || die("Missing server uri.");
-forward_to || die("Missing forwarding location.");
+serverUrl || die("Missing server uri.");
+forwardTo || die("Missing forwarding location.");
 
 console.log(`
 client_key: ${client_key}
-ws_server: ${ws_server}
-forward_to: ${forward_to}
+serverUrl: ${serverUrl}
+forwardTo: ${forwardTo}
 `);
 
 
 new WebSockProxyClient(client_key)
-  .connect(ws_server, {forward_to: forward_to })
+  .connect(serverUrl, {forward_to: forwardTo })
   .on('error', function clientError() {
-    console.error(`Could not connect to remote server ${ws_server}.
+    console.error(`Could not connect to remote server ${serverUrl}.
 
       Make sure the server is running on the address port specified?
       `);
   })
   .on('open', function clientOnConnect() {
-    console.log(`Tunnel ${ws_server} -> ${forward_to} set up and ready.`);
+    console.log(`Tunnel ${serverUrl} -> ${forwardTo} set up and ready.`);
   })
   .on('close', function clientOnClose() {
     console.log('Connection closed, exitting.');

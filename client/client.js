@@ -8,14 +8,10 @@ const WebSocket = require('ws');
 const WsJsonProtocol = require('../lib/ws-json');
 const { BufferStruct, BufferStructType } = require('../lib/buffer-struct');
 const { Messanger } = require('../server/ws-message');
+const { getLogger } = require('../lib/logger');
 
-function detail_info() {
-  if (process.env.DEBUG) console.log.apply(console, arguments);
-}
-function info() {
-  console.log.apply(console, arguments);
-}
-
+const debug = getLogger.debug({prefix: '\u001b[34mC:d', postfix: '\u001b[0m\n'}),
+      info = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'});
 
 class RequestForwarder extends Object {
   constructor(ws, forward_base_uri) {
@@ -25,7 +21,7 @@ class RequestForwarder extends Object {
     let parsed_uri = new URL(forward_base_uri);
     if (parsed_uri.search) throw new Error("Search path is not implemented yet for forward base uri.");
     if (!parsed_uri.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsed_uri.protocol}).`);
-      detail_info(forward_base_uri);
+      debug(forward_base_uri);
     this._forward_base_uri = parsed_uri;
     this._ws = ws;
     this._activeChannels = {};
@@ -46,7 +42,7 @@ class RequestForwarder extends Object {
       case 'headers':
         this.setState('> headers');
         const ireq = message.data;
-        info(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
+        debug(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
         let oreq_uri = new URL(this._forward_base_uri.toString()); // clone the original uri
         oreq_uri.href = path.posix.join(oreq_uri.href, ireq.url);
         const req_params = {
@@ -58,9 +54,9 @@ class RequestForwarder extends Object {
         let sender = function sender(event_id) {
           return function (data) {
             if (event_id == 'data') {
-              detail_info(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname} ${data.length}`);
+              debug(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname} ${data.length}`);
             } else {
-              detail_info(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
+              debug(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
             }
             self.setState('< ' + event_id);
             _send({
@@ -70,12 +66,12 @@ class RequestForwarder extends Object {
             })
           }
         }
-        detail_info(` :> ${message.channel}:  ${ireq.toString()} ${oreq_uri.toString()}`);
+        info(` > ${message.channel}:  ${ireq.method} ${ireq.url} -> ${oreq_uri.toString()}`);
         this.setState('> headers', '> headers ');
         req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
           // res.setEncoding('utf8');
           self.setState(null, '< headers ');
-          detail_info(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
+          debug(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
           sender('headers')({
             statusCode: res.statusCode,
             statusMessage: res.statusMessage,
@@ -95,7 +91,7 @@ class RequestForwarder extends Object {
         req = this._activeChannels[message.channel];
         if (req) {
             try {
-                detail_info(`  :> `);
+                debug(`  :> `);
                 req.write(message.data);
             } catch(err) {
                 throw err;
@@ -139,7 +135,7 @@ class RequestForwarder extends Object {
 
   _destroyChannel(channelUrl) {
       if (this._activeChannels[channelUrl]) {
-        detail_info(`del channel ${channelUrl}`);
+        debug(`del channel ${channelUrl}`);
         delete this._activeChannels[channelUrl];
         return true;
       } else {
@@ -160,45 +156,29 @@ class RequestForwarder extends Object {
 }
 
 
-class WathDog extends Object {
-    constructor(requestForwarder) {
-        super();
-        this._clock = setInterval(this.tick.bind(this), 5000);
-        this.requestForwarder = requestForwarder;
-    }
-
-    tick() {
-      detail_info('\n');
-      detail_info(this.requestForwarder._activeChannels);       
-      detail_info('\n');
-      process
-    }
-}
-
 class WebSockProxyClient extends Object {
 
-    constructor(client_key) {
-        super();
-        this.key = client_key;
-    }
+  constructor(client_key) {
+    super();
+    this.key = client_key;
+  }
 
-    connect(ws_server, {forward_to = 'http://localhost', websocket_path = '/ws'}={}) {
-        const ws_ = new WebSocket(`${ws_server}${websocket_path}/${this.key}`);
-        const ws = new Messanger(ws_);
+  connect(ws_server, {forward_to = 'http://localhost', websocket_path = '/ws'}={}) {
+    const ws_ = new WebSocket(`${ws_server}${websocket_path}/${this.key}`);
+    const ws = new Messanger(ws_);
 
-        ws.on('open', function open() {
-          const request_forwarder = new RequestForwarder(ws, forward_to);
-          // const watchDog = new WathDog(request_forwarder);
-          console.log("Client connection openned.");
+    ws.on('open', function open() {
+      const request_forwarder = new RequestForwarder(ws, forward_to);
+      info("Client connection openned.");
 
-          ws.send('/', 'test', {data:"Hallo."});
-          ws.on("message", request_forwarder.on_message.bind(request_forwarder));
-          ws.on("close", function onClose() {
-            console.log("Client connection closed.");
-          });
-        });
-        return ws;
-    }
+      ws.send('/', 'test', {data:"Hallo."});
+      ws.on("message", request_forwarder.on_message.bind(request_forwarder));
+      ws.on("close", function onClose() {
+        info("Client connection closed.");
+      });
+    });
+    return ws;
+  }
 }
 
 exports.WebSockProxyClient = WebSockProxyClient
