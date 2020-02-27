@@ -37,6 +37,7 @@ function unpackMessage(message) {
     } else if (message.dataType == TYPE_UNDEFINED) {
         message.data = undefined;
     }
+    delete message.dataType
     return message;
 }
 
@@ -50,6 +51,7 @@ class Messanger {
         const self = this;
         this.channels = new events.EventEmitter();
         this.webSocket = webSocket;
+        this._listeners = {};
         //webSocket.on('message', function decodeMessage(message) {
         //    const unpackedMessage = MessageTypeView.toJSON(message));
         //    self.channels.emit(
@@ -61,8 +63,9 @@ class Messanger {
     }
 
     on(eventName, callback) {
+
         if (eventName == 'message') {
-            return this.webSocket.on('message', function unpackMessageMiddleware(message) {
+            const newCallback = function unpackMessageMiddleware(message) {
                 try {
                     message = unpackMessage(message);
                 } catch (err) {
@@ -70,10 +73,21 @@ class Messanger {
                     throw (err);
                 }
                 return callback(message);
-            });
+            }
+            this._listeners[callback] = newCallback;
+            return this.webSocket.on('message', newCallback);
         } else {
             return this.webSocket.on(eventName, callback);
         }
+    }
+
+    off(eventName, callback) {
+      if (eventName == 'message' && this._listeners[callback]) {
+        this.webSocket.off('message', this._listeners[callback]);
+        delete(this._listeners[callback]);
+      } else {
+        this.webSocket.off(eventName, callback);
+      }
     }
 
 

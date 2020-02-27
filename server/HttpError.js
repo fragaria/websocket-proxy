@@ -1,11 +1,13 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 
+const http = require('http');
+
 class HttpError extends Error {
   constructor(description, code, message) {
     super();
     this.code = code ? code : this._code;
-    this.message = message ? message : this._msg;
+    this.message = message ? message : http.STATUS_CODES[this.code.toString()];
     this.description = description ? description : 'N/A';
   }
 
@@ -29,22 +31,18 @@ class HttpError extends Error {
 
 class BadGateway extends HttpError {
   get _code() {return 502;}
-  get _msg() { return "Bad gateway"; }
 }
 
 class BadRequest extends HttpError {
   get _code() {return 400;}
-  get _msg() { return "Bad request"; }
 }
 
 class Unauthorized extends HttpError {
   get _code() {return 401;}
-  get _msg() { return "Unauthorized"; }
 }
 
 class NotFound extends HttpError {
   get _code() {return 404;}
-  get _msg() { return "Not found"; }
 }
 
 exports.HttpError = HttpError;

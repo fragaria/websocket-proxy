@@ -1,7 +1,8 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
-const WebSockProxyClient = require('./client').WebSockProxyClient;
-const config = require('../config');
+const WebSockProxyClient = require('./client').WebSockProxyClient,
+      config = require('../config'),
+      { debug, info, error } = require('../lib/logger');
 
 
 function usage() {
@@ -20,38 +21,60 @@ function usage() {
 
 function die(message, {edify=true}={}) {
   if (edify) usage();
-  if (message) console.log(message);
+  if (message) error(message);
   process.exit();
 }
 
-const client_key = process.argv[2] ? process.argv[2] : config.client.key;
-const serverUrl =  process.argv[3] ? process.argv[3] : config.client.serverUrl;
-const forwardTo = process.argv[4] ? process.argv[4] : config.client.forwardTo;
+function Client(key, forwardTo) {
+  const self = this;
+  this.wsProxy = new WebSockProxyClient(key);
+  this.close = this.wsProxy.close.bind(this.wsProxy);
+  this.connect = function connect(serverUrl, config={forwardTo:forwardTo}) {
+    return new Promise((resolve, reject) => {
+      const connection = this.wsProxy.connect(serverUrl, config);
+        connection.on('error', function clientError(err) {
+          error(`An error occured while connecting to ${serverUrl}.
+
+            Error: ${err}.
+
+            Make sure the server is running on the address port specified?
+            `);
+        })
+        .on('open', function clientOnConnect() {
+          info(`Tunnel ${serverUrl} -> ${config.forwardTo} set up and ready.`);
+        })
+        .on('close', function clientOnClose() {
+          info('Connection closed, exitting.');
+          process.exit();
+        })
+        .on('error', reject)
+        .on('open', ()=> {
+          connection.off('error', reject);
+          resolve(self);
+        });
+    });
+  }
+}
+module.exports = Client;
+
+if (require.main == module) {
+
+  const clientKey = process.argv[2] ? process.argv[2] : config.client.key;
+  const serverUrl =  process.argv[3] ? process.argv[3] : config.client.serverUrl;
+  const forwardTo = process.argv[4] ? process.argv[4] : config.client.forwardTo;
 
 
-client_key || die("Missing client key.");
-serverUrl || die("Missing server uri.");
-forwardTo || die("Missing forwarding location.");
+  clientKey || die("Missing client key.");
+  serverUrl || die("Missing server uri.");
+  forwardTo || die("Missing forwarding location.");
 
-console.log(`
-client_key: ${client_key}
-serverUrl: ${serverUrl}
-forwardTo: ${forwardTo}
-`);
+  info(`
+  client_key: ${clientKey}
+  serverUrl: ${serverUrl}
+  forwardTo: ${forwardTo}
+  `);
+
+  new Client(clientKey, forwardTo).connect(serverUrl);
 
 
-new WebSockProxyClient(client_key)
-  .connect(serverUrl, {forward_to: forwardTo })
-  .on('error', function clientError() {
-    console.error(`Could not connect to remote server ${serverUrl}.
-
-      Make sure the server is running on the address port specified?
-      `);
-  })
-  .on('open', function clientOnConnect() {
-    console.log(`Tunnel ${serverUrl} -> ${forwardTo} set up and ready.`);
-  })
-  .on('close', function clientOnClose() {
-    console.log('Connection closed, exitting.');
-    process.exit();
-  });
+}

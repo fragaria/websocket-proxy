@@ -1,9 +1,10 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 'use strict';
 
-const EventEmitter = require('events');
-const checksum = require('../lib').checksum;
-const {BadRequest, Unauthorized} = require('./HttpError');
+const EventEmitter               = require('events'),
+      checksum                   = require('../lib').checksum,
+      {BadRequest, Unauthorized} = require('./HttpError'),
+      { debug, info, warning }   = require('../lib/logger');
 
 class ClientsManager extends Object {
     constructor({allowed_keys=[], path_prefix='/ws'}={}) {
@@ -19,22 +20,22 @@ class ClientsManager extends Object {
         this.messageSubscribers = [];
     }
 
-    makeClient(id) {
+    makeClient(clientKey) {
       let client = new EventEmitter();
-      client.id = id;
+      client.id = checksum(clientKey);
       return client;
     }
 
     authenticate(request, socket, callback) {
-      console.log(`Authenticating request ${request} on ${request.url}.`);
+      info(`Authenticating request ${request} on ${request.url}.`);
       const match = request.url.match(new RegExp(`^${this.path_prefix}/(?<client_key>.*)$`));
       if (! match) return callback(new Error("Unknown url."));
       if (this.clientFromId(match.groups.client_key)) return callback(new BadRequest("The key is already used by another client."));
       if (this.allowed_keys === true || this.allowed_keys.has(match.groups.client_key)) {
-        console.log(`Key ${match.groups.client_key} accepted`);
-        callback(null, this.makeClient(checksum(match.groups.client_key)));
+        debug(`Key ${match.groups.client_key} accepted`);
+        callback(null, this.makeClient(match.groups.client_key));
       } else {
-        console.log('Invalid key');
+        info('Invalid key');
         callback(new Unauthorized("Invalid key."), null);
       }
     }

@@ -10,7 +10,8 @@ const { checksum } = require('../lib'),
 
 const debug    = getLogger.debug({prefix: '\u001b[33mS:d', postfix: '\u001b[0m\n'}),
       info     = getLogger.info({prefix: '\u001b[32mS/i', postfix: '\u001b[0m\n'}),
-      warning  = getLogger.warning({prefix: '\u001b[31mS/w', postfix: '\u001b[0m\n'});
+      warning  = getLogger.warning({prefix: '\u001b[31mS/w', postfix: '\u001b[0m\n'}),
+      error    = getLogger.error({prefix: '\u001b[31mS/!', postfix: '\u001b[0m\n'});
 
 const MESSAGE_FORMAT = [
   {name: 'channel', type: 'string', size: '100'},
@@ -35,7 +36,13 @@ class ForwardedRequest extends Object {
   }
 
   handleResponseMessage(message, destroyCallback) {
-     const callback = this[`on_${message.event}`].bind(this);
+     let callback;
+     try {
+       callback = this[`on_${message.event}`].bind(this);
+     } catch (err) {
+       error(`Unknown message event ${message.event}`);
+       throw err;
+     }
      return callback(message, destroyCallback);
   }
 
@@ -61,16 +68,16 @@ class ForwardedRequest extends Object {
   }
 
   on_error(message, destroyCallback) {
-      debug(`<:   ${this.channelUrl}:  error`);
-      new BadGateway(JSON.stringify(message.data, undefined, 3)).toResponse(this.response);
+      info(`<:   ${this.channelUrl}:  error: ${message.data}`);
+      new BadGateway(message.data).toResponse(this.response);
       this.on_end(message, destroyCallback);
   }
 
   resendHeaders() {
     let request_data = {
       method: this.request.method,
-      headers: this.request.headers,
       url: this.target_path,
+      headers: this.request.headers,
     }
     debug(` :>  ${this.channelUrl}:  ${this.request.method} ${this.request.url}`);
     this.sendMessage('headers', request_data); 
@@ -118,14 +125,17 @@ class Api extends Object {
     this._onClientClose = this._removeClient.bind(this);
   }
 
-  
+  deleteChannel(channelUrl) {
+    debug(`Deleting channel ${channelUrl}`);
+    delete this._activeChannels[channelUrl];
+  }
 
   __onClientMessage(message, client) {
     message = unpackMessage(message);
     const channelUrl = message.channel;
     const channel = this._activeChannels[channelUrl];
     if (channel) {
-      channel.handleResponseMessage(message, () => delete this._activeChannels[channelUrl]);
+      channel.handleResponseMessage(message, ()=>this.deleteChannel(channelUrl));
     }
   }
 

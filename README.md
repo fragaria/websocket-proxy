@@ -13,9 +13,17 @@ INSTALLATION
     npm install
 
     # run either
-    node run server <host>:<port> &
-    node run client <client-key> <server_host>:<server_port> <forward_to_base_uri> &  # forward-to-* points to a server to forward http to
-    client_key=kpz-1
-    curl localhost:8080/api/$client_key # path is the path to get from <forward-to-host>
+    node run server
+
+    # or client
+    node run client
+
+    # test with
+    client_key=client-1
+    curl localhost:8090/api/$client_key/__ping__ # path is the path to get from <forward-to-host>
 
 
+RUN TESTS
+---
+
+npm tst

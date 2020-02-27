@@ -1,8 +1,11 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 
-const http = require('http');
-const WebSocket = require('ws');
+const http = require('http'),
+      WebSocket = require('ws'),
+      config = require('../config'),
+      { debug, info, warning, error, DEBUG } = require('../lib/logger');
+
 
 
 /*
@@ -14,29 +17,29 @@ function setupWebsocketServer(httpServer, authenticator) {
 
   webSocketServer.on('connection', function connection(ws, request, client) {
 
-    // TODO: should be run in debug mode only
-    console.log('Clients:')
-    webSocketServer.clients.forEach(function each(client) {
-       console.log(`- ${client.id}`);
-    });
+    if (config.logVerbosity >= DEBUG) {
+      debug('Clients:')
+      webSocketServer.clients.forEach(function each(client) {
+         debug(`- ${client.id}`);
+      });
+    }
     ws.on('message', function message(msg) {
-      // console.log(`Received message from client ${client.id}`);
+      debug(`Received message from client ${client.id}`);
     });
   });
 
   httpServer.on('upgrade', function upgrade(request, socket, head) {
-    console.log("Upgrading protocol.");
+    debug("Upgrading protocol.");
     authenticator.authenticate(request, socket, (err, client) => {
       if (err || !client) {
-        console.log("Destroying connection");
+        debug("Destroying connection");
         socket.destroy();
         return;
       }
 
       webSocketServer.handleUpgrade(request, socket, head, function done(ws) {
-        console.log("Emitting ws connection");
         ws.on('close', function onClose() {
-          console.log(`Client ${client.id} closed connection.`);
+          debug(`Client ${client.id} closed connection.`);
           authenticator.onClose(ws, client);
         });
         ws.on('message', (message)=>authenticator.onMessage(message, ws, client));

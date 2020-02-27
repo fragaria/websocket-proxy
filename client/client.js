@@ -3,19 +3,21 @@
 const path = require('path');
 const http = require('http');
 const { checksum } = require('../lib');
-const statusBar = new (require('../lib/utils').ConsoleStatusBar)(1, 1, 100);
 const WebSocket = require('ws');
-const WsJsonProtocol = require('../lib/ws-json');
-const { BufferStruct, BufferStructType } = require('../lib/buffer-struct');
 const { Messanger } = require('../server/ws-message');
 const { getLogger } = require('../lib/logger');
 
-const debug = getLogger.debug({prefix: '\u001b[34mC:d', postfix: '\u001b[0m\n'}),
-      info = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'});
+
+const debug   = getLogger.debug({prefix: '\u001b[34mC:d', postfix: '\u001b[0m\n'}),
+      info    = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'}),
+      warning = getLogger.info({prefix: '\u001b[35mC:i', postfix: '\u001b[0m\n'}),
+      error   = getLogger.error({prefix: '\u001b[31mC:!', postfix: '\u001b[0m\n'});
 
 class RequestForwarder extends Object {
+
   constructor(ws, forward_base_uri) {
     super();
+    this.__http = http; // entry point for code injection
     this.maxChannelLivespan = 30000;  // in milliseconds FIXME: configuration should live in config file
     if (!forward_base_uri) throw new Error("Missing the base uri to forward to.");
     let parsed_uri = new URL(forward_base_uri);
@@ -31,7 +33,27 @@ class RequestForwarder extends Object {
   setState(ws, http) {
     if (ws) this.state[0] = ws;
     if (http) this.state[1] = http;
-    // statusBar.write(`${this.state[0]} | ${this.state[1]} ${this.parsed_uri}`);
+  }
+
+  testResponse(message) {
+    this._send({
+      channel: message.channel,
+      event: 'headers',
+      data: {
+        statusCode: 200,
+        statusMessage: 'OK',
+        headers: {'content-type': 'text/plain; charset=utf-8'},
+      }
+    });
+    this._send({
+      channel: message.channel,
+      event: 'data',
+      data: new Buffer.from('Pong'),
+    });
+    this._send({
+      channel: message.channel,
+      event: 'end',
+    });
   }
 
   handle_request(message) {
@@ -42,6 +64,9 @@ class RequestForwarder extends Object {
       case 'headers':
         this.setState('> headers');
         const ireq = message.data;
+        if (ireq.url == '/__ws_proxy_test__') {
+          return this.testResponse(message);
+        }
         debug(`< ${message.channel}:  ${ireq.method} ${ireq.url}`);
         let oreq_uri = new URL(this._forward_base_uri.toString()); // clone the original uri
         oreq_uri.href = path.posix.join(oreq_uri.href, ireq.url);
@@ -55,9 +80,16 @@ class RequestForwarder extends Object {
           return function (data) {
             if (event_id == 'data') {
               debug(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname} ${data.length}`);
+            } else if (event_id == 'error') {
+              info(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
             } else {
               debug(`<:  ${message.channel}:  ${event_id} ${ireq.method} ${oreq_uri.pathname}`);
             }
+
+            if (event_id == 'end' || event_id == 'error') {
+              self._destroyChannel(message.channel);
+            }
+
             self.setState('< ' + event_id);
             _send({
               channel: message.channel,
@@ -68,7 +100,8 @@ class RequestForwarder extends Object {
         }
         info(` > ${message.channel}:  ${ireq.method} ${ireq.url} -> ${oreq_uri.toString()}`);
         this.setState('> headers', '> headers ');
-        req = http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
+        let reqTimeout;
+        req = this.__http.request(oreq_uri.toString(), req_params, function handleResponse(res) {
           // res.setEncoding('utf8');
           self.setState(null, '< headers ');
           debug(`<:  ${message.channel}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${oreq_uri.pathname}`);
@@ -78,36 +111,36 @@ class RequestForwarder extends Object {
             headers: res.headers,
           });
           res.on('data', sender('data'));
-          res.on('end', () => {
+          res.on('end', ()=> {
             sender('end')();
-            self._destroyChannel(message.channel);
+            clearTimeout(reqTimeout);
           });
         });
         this._registerChannel(message.channel, req);
         req.on('error', sender('error'));
+        reqTimeout = setTimeout(() => {
+          req.emit('error', 'The request timed out.');
+        }, this.maxChannelLivespan);
         break;
       case 'data':
         this.setState('> data');
         req = this._activeChannels[message.channel];
         if (req) {
-            try {
-                debug(`  :> `);
-                req.write(message.data);
-            } catch(err) {
-                throw err;
-            }
+            debug(`  :> data`);
+            req.write(message.data);
         } else {
-            console.error(`Channel ${message.channel} not found. Did it expire (on data sent)?`);
+            error(`Channel ${message.channel} not found. Did it expire (on data sent)?`);
         }
         break;
       case 'end':
+        debug(` :> ${message.channel} end`);
         this.setState('> end');
         req = this._activeChannels[message.channel];
         if (req) {
             req.end();
             this._destroyChannel(message.channel);
         } else {
-            console.error(`Channel ${message.channel} not found. Did it expire (on response end)?`);
+            error(`Channel ${message.channel} not found. Did it expire (on response end)?`);
         }
         break;
       default:
@@ -118,7 +151,7 @@ class RequestForwarder extends Object {
   _registerChannel(channelUrl, request) {
     this._activeChannels[channelUrl] = request;
     let self=this;
-    setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan);
+    setTimeout(()=>self._onChannelTimeout(channelUrl), this.maxChannelLivespan+10);
   }
 
   _onChannelTimeout(channelUrl) {
@@ -135,7 +168,7 @@ class RequestForwarder extends Object {
 
   _destroyChannel(channelUrl) {
       if (this._activeChannels[channelUrl]) {
-        debug(`del channel ${channelUrl}`);
+        debug(`destroying channel ${channelUrl}`);
         delete this._activeChannels[channelUrl];
         return true;
       } else {
@@ -150,10 +183,11 @@ class RequestForwarder extends Object {
   on_message(message) {
     if (message.channel && message.channel.indexOf('/req/') == 0) {
       this.handle_request(message);
-    } else {
     }
   }
 }
+
+exports.RequestForwarder = RequestForwarder;
 
 
 class WebSockProxyClient extends Object {
@@ -161,23 +195,45 @@ class WebSockProxyClient extends Object {
   constructor(client_key) {
     super();
     this.key = client_key;
+
+    // entry point for code injection
+    this.__web_socket = WebSocket;
+    this.__http = http;
   }
 
-  connect(ws_server, {forward_to = 'http://localhost', websocket_path = '/ws'}={}) {
-    const ws_ = new WebSocket(`${ws_server}${websocket_path}/${this.key}`);
-    const ws = new Messanger(ws_);
+  connect(wsServer, {
+      forwardTo='http://localhost',
+      websocketPath='/ws',
+      requestTimeout=5000,
+    }={}) {
+    if (this.ws_) {
+      throw new Error('Attemt to open connection while there is active socket already.');
+    }
+    this.ws_ = new this.__web_socket(`${wsServer}${websocketPath}/${this.key}`);
+    const ws = new Messanger(this.ws_);
 
-    ws.on('open', function open() {
-      const request_forwarder = new RequestForwarder(ws, forward_to);
+    ws.on('open', () => {
+      const requestForwarder = new RequestForwarder(ws, forwardTo);
+      requestForwarder.__http = this.__http;
+      requestForwarder.maxChannelLivespan = requestTimeout;
       info("Client connection openned.");
 
       ws.send('/', 'test', {data:"Hallo."});
-      ws.on("message", request_forwarder.on_message.bind(request_forwarder));
+      ws.on("message", requestForwarder.on_message.bind(requestForwarder));
       ws.on("close", function onClose() {
-        info("Client connection closed.");
+        info("Server connection closed.");
       });
     });
     return ws;
+  }
+
+  close() {
+    if (this.ws_) {
+      this.ws_.close();
+      delete(this.ws_);
+    } else {
+      warning(`Attempt to close connection while there is no active socket yet.`);
+    }
   }
 }
 
