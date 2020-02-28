@@ -21,6 +21,22 @@ module.exports = {
              "ArrayExpression": "first",
              "SwitchCase": 1,
           },
-       ]
+       ], // indent
+       "default-case": [ "error" ],  // add `// no default` instead of default:... to skip
+       "no-fallthrough": [ "error" ], // add `// fall through` after statement to skip this check
+
+       "no-setter-return": [ "warn" ],
+       "no-import-assign": [ "warn" ],
+       "no-dupe-else-if": [ "error" ],
+       "no-template-curly-in-string": [ "error" ],
+       "array-callback-return": [ "warn" ],
+       "dot-notation": [ "warn" ],
+       "no-constructor-return": [ "warn" ],
+       "no-eq-null": [ "error" ],
+       "no-extra-bind": [ "warn" ],
+
+       "no-new-wrappers": [ "error" ],
+       "no-throw-literal": [ "error" ],
+       "no-unmodified-loop-condition": [ "warn" ],
     }
 };
