@@ -19,13 +19,13 @@ class HttpError extends Error {
   }
 
   toResponse(res) {
-      res.writeHead(this.code, {'content-type': 'application/json; charset=utf-8'});
-      res.write(JSON.stringify({
-        code: this.code,
-        message: this.message,
-        description: this.description,
-      }));
-      res.end();
+    res.writeHead(this.code, {'content-type': 'application/json; charset=utf-8'});
+    res.write(JSON.stringify({
+      code: this.code,
+      message: this.message,
+      description: this.description,
+    }));
+    res.end();
   }
 }
 
@@ -45,6 +45,10 @@ class NotFound extends HttpError {
   get _code() {return 404;}
 }
 
-exports.HttpError = HttpError;
-exports.BadGateway = BadGateway;
-exports.NotFound = NotFound;
+module.exports = {
+  HttpError: HttpError,
+  BadGateway: BadGateway,
+  BadRequest: BadRequest,
+  Unauthorized: Unauthorized,
+  NotFound: NotFound,
+}

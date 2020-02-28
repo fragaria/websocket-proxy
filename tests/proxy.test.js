@@ -86,28 +86,30 @@ test('request abort', t => {
 });
 
 test.before(t => {
-    const Server = require('../server'),
-          Client = require('../client');
+  const Server = require('../server'),
+        Client = require('../client'),
 
-    const server = new Server();
-    const client = new Client('client-1', );
-    // configuration passed to the client
-    const clientConfig = {
-      forwardTo: 'http://example.com/',
-      requestTimeout: 120, 
-    }
+        server = new Server(),
+        client = new Client('client-1', ),
 
-    if (fs.existsSync(socketFilePath)) { // socket file is not released when tests fail
-      fs.unlinkSync(socketFilePath);
-    }
-    t.context = {
-        server: server,
-        client: client,
-    }
-    return server.listen(socketFilePath).then(()=>{  /// start server
-        return client.connect(`ws+unix://${socketFilePath}:`, clientConfig).then(() => {
-        }).catch(()=>console.error('Client could not connect.'));
-      }).catch(()=>console.error('Server could not connect.'));
+        // configuration passed to the client
+        clientConfig = {
+          forwardTo: 'http://example.com/',
+          requestTimeout: 120,
+        }
+
+  // socket file is not released when tests fail
+  if (fs.existsSync(socketFilePath)) {
+    fs.unlinkSync(socketFilePath);
+  }
+  t.context = {
+    server: server,
+    client: client,
+  }
+  return server.listen(socketFilePath).then(()=>{  /// start server
+    return client.connect(`ws+unix://${socketFilePath}:`, clientConfig).then(() => {
+    }).catch(()=>console.error('Client could not connect.'));
+  }).catch(()=>console.error('Server could not connect.'));
 
 
 
@@ -115,11 +117,11 @@ test.before(t => {
 });
 
 test.after(t => {
-     t.context.client.close(); 
-     t.context.server.close(); 
-     if(fs.existsSync(socketFilePath)) {
-       fs.unlinkSync(socketFilePath); 
-     }
+  t.context.client.close();
+  t.context.server.close();
+  if(fs.existsSync(socketFilePath)) {
+    fs.unlinkSync(socketFilePath);
+  }
 });
 /*
  * Simple inefficient request maker
@@ -142,8 +144,8 @@ function makeRequest(path, config = {}, payload='') {
       response.on('error', reject);
       response.on('data', chunk=>data.body.push(chunk));
       response.on('end', ()=> {
-          data.fullBody = Buffer.concat(data.body);
-          resolve(data);
+        data.fullBody = Buffer.concat(data.body);
+        resolve(data);
       });
     }
     const req = http.request(config, handleResponse);

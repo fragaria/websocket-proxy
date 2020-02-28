@@ -8,24 +8,24 @@ const setupWebsocketServer = require('./server');
 const Api = require('./api');
 const ClientsManager = require('./clients-manager');
 
-function usage() {
-  console.log(`USAGE:
-
-    server [[<server_host>:]<server_port>]
-
-    server_host   ... hostname or ip address of websocket proxy server
-                      (defaults to 0.0.0.0)
-    server_port   ... port of websocket proxy server (defaults to 8000)
-
-`);
-}
+/**
+ * USAGE:
+ *
+ *  server [[<server_host>:]<server_port>]
+ *
+ *  server_host   ... hostname or ip address of websocket proxy server
+ *                    (defaults to 0.0.0.0)
+ *  server_port   ... port of websocket proxy server (defaults to 8000)
+ *
+`*
+ */
 
 function Server() {
 
   this.clientsManager = new ClientsManager({
-      allowed_keys: true,  // true - pass any key; a list - pass individual keys
-      path_prefix: '/ws',
-    });
+    allowed_keys: true,  // true - pass any key; a list - pass individual keys
+    path_prefix: '/ws',
+  });
   this.apiServer = new Api( '/api', this.clientsManager);
   this.httpServer = http.createServer(this.apiServer.request_handler);
   this.webSocketServer = setupWebsocketServer(this.httpServer, this.clientsManager);
@@ -40,12 +40,12 @@ function Server() {
       `);
 
   })
-  .on('close', () => {
-    info('Connection closed.');
-  })
-  .on('error', (err) => {
-    error(`Error ${err} occured.`);
-  });
+    .on('close', () => {
+      info('Connection closed.');
+    })
+    .on('error', (err) => {
+      error(`Error ${err} occured.`);
+    });
 
   this.listen = function listen(port, host) {
     return new Promise((resolve, reject) => {

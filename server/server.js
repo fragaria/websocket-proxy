@@ -1,10 +1,9 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 
-const http = require('http'),
-      WebSocket = require('ws'),
+const WebSocket = require('ws'),
       config = require('../config'),
-      { debug, info, warning, error, DEBUG } = require('../lib/logger');
+      { debug, DEBUG } = require('../lib/logger');
 
 
 
@@ -15,17 +14,14 @@ const http = require('http'),
 function setupWebsocketServer(httpServer, authenticator) {
   const webSocketServer = new WebSocket.Server({ noServer: true });
 
-  webSocketServer.on('connection', function connection(ws, request, client) {
+  webSocketServer.on('connection', function connection(/*ws, request, client*/) {
 
     if (config.logVerbosity >= DEBUG) {
       debug('Clients:')
       webSocketServer.clients.forEach(function each(client) {
-         debug(`- ${client.id}`);
+        debug(`- ${client.id}`);
       });
     }
-    ws.on('message', function message(msg) {
-      debug(`Received message from client ${client.id}`);
-    });
   });
 
   httpServer.on('upgrade', function upgrade(request, socket, head) {

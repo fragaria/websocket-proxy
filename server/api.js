@@ -1,6 +1,5 @@
 'use strict';
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
-const REQ_SIZE_LIMIT = 1024*1024;
 
 const { checksum } = require('../lib'),
       { getLogger } = require('../lib/logger'),
@@ -13,17 +12,10 @@ const debug    = getLogger.debug({prefix: '\u001b[33mS:d', postfix: '\u001b[0m\n
       warning  = getLogger.warning({prefix: '\u001b[31mS/w', postfix: '\u001b[0m\n'}),
       error    = getLogger.error({prefix: '\u001b[31mS/!', postfix: '\u001b[0m\n'});
 
-const MESSAGE_FORMAT = [
-  {name: 'channel', type: 'string', size: '100'},
-  {name: 'event', type: 'string', size: '30'},
-  {name: 'data', type: 'buffer'},
-]
-
 
 class ForwardedRequest extends Object {
   constructor(request, response, resource_path, client) {
     super();
-    const self = this;
     if (! client.webSocket) throw new BadGateway();
     this.request = request;
     this.response = response;
@@ -36,41 +28,41 @@ class ForwardedRequest extends Object {
   }
 
   handleResponseMessage(message, destroyCallback) {
-     let callback;
-     try {
-       callback = this[`on_${message.event}`].bind(this);
-     } catch (err) {
-       error(`Unknown message event ${message.event}`);
-       throw err;
-     }
-     return callback(message, destroyCallback);
+    let callback;
+    try {
+      callback = this[`on_${message.event}`].bind(this);
+    } catch (err) {
+      error(`Unknown message event ${message.event}`);
+      throw err;
+    }
+    return callback(message, destroyCallback);
   }
 
   on_headers(message) {
-      debug(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage}
+    debug(`<:   ${this.channelUrl}:  ${message.data.statusCode} ${message.data.statusMessage}
         / ${message.event} ${this.request.method} ${this.request.url}`);
-      this.response.writeHead(message.data.statusCode, message.data.statusMessage, message.data.headers);
+    this.response.writeHead(message.data.statusCode, message.data.statusMessage, message.data.headers);
   }
 
   on_data(message) {
-      if (message.data instanceof Object) {
-        message.data = Buffer.from(message.data)
-      }
-      debug(`<:   ${this.channelUrl}:  data ${checksum(message.data)}`);
-      this.response.write(message.data);
+    if (message.data instanceof Object) {
+      message.data = Buffer.from(message.data)
+    }
+    debug(`<:   ${this.channelUrl}:  data ${checksum(message.data)}`);
+    this.response.write(message.data);
   }
 
   on_end(message, destroyCallback) {
-      debug(`<:   ${this.channelUrl}:  end`);
-      this.response.end();
-      destroyCallback();
-      // TODO: cleanup / delete this instance
+    debug(`<:   ${this.channelUrl}:  end`);
+    this.response.end();
+    destroyCallback();
+    // TODO: cleanup / delete this instance
   }
 
   on_error(message, destroyCallback) {
-      info(`<:   ${this.channelUrl}:  error: ${message.data}`);
-      new BadGateway(message.data).toResponse(this.response);
-      this.on_end(message, destroyCallback);
+    info(`<:   ${this.channelUrl}:  error: ${message.data}`);
+    new BadGateway(message.data).toResponse(this.response);
+    this.on_end(message, destroyCallback);
   }
 
   resendHeaders() {
@@ -130,7 +122,7 @@ class Api extends Object {
     delete this._activeChannels[channelUrl];
   }
 
-  __onClientMessage(message, client) {
+  __onClientMessage(message) {
     message = unpackMessage(message);
     const channelUrl = message.channel;
     const channel = this._activeChannels[channelUrl];
@@ -145,9 +137,10 @@ class Api extends Object {
     if (!path_info || !path_info.id || ! path_info.resource) {
       throw new NotFound(`Invalid url ${req.url}.`);
     }
-    const client_id = checksum(path_info.id);
-    const resource_path = path_info.resource;
-    const client = this._clientsManager.clientFromId(client_id);
+    const
+          client_id = checksum(path_info.id),
+          resource_path = path_info.resource,
+          client = this._clientsManager.clientFromId(client_id);
     if (! client ) {
       throw new BadGateway(`Client with id ${client_id} is not connected.`);
     }
@@ -170,7 +163,6 @@ class Api extends Object {
   }
 
   registerClient(client) {
-    const self = this;
     this._activeClients.add(client.id);
     client.on('message', this._onClientMessage);
     client.on('close', this._onClientClose);
@@ -182,16 +174,16 @@ class Api extends Object {
    */
   get request_handler() {
     return (function (req, res) {
-        try {
-          this._request_handler(req, res);
-        } catch(err) {
-          if (err instanceof HttpError) {
-            warning(`! ${req.url} Error ${err}`);
-            err.toResponse(res);
-          } else {
-            throw (err);
-          }
+      try {
+        this._request_handler(req, res);
+      } catch(err) {
+        if (err instanceof HttpError) {
+          warning(`! ${req.url} Error ${err}`);
+          err.toResponse(res);
+        } else {
+          throw (err);
         }
+      }
     }).bind(this);
   }
 
