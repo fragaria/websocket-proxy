@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "ava",
+    "coverage": "nyc ava",
     "lint": "eslint .",
     "client": "node client",
     "server": "node server"

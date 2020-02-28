@@ -8,60 +8,51 @@ const path = require('path'),
 
       debug   = getLogger.debug({prefix: '\u001b[34mC:d', postfix: '\u001b[0m\n'}),
       info    = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'}),
-      warning = getLogger.info({prefix: '\u001b[35mC:i', postfix: '\u001b[0m\n'}),
-      error   = getLogger.error({prefix: '\u001b[31mC:!', postfix: '\u001b[0m\n'});
+      warning = getLogger.info({prefix: '\u001b[35mC:i', postfix: '\u001b[0m\n'});
 
 class RequestForwarder extends Object {
 
-  constructor(ws, forward_base_uri) {
+  constructor(ws, forwardBaseUri) {
     super();
     this.__http = http; // entry point for code injection
     this.maxChannelLivespan = 30000;  // in milliseconds FIXME: configuration should live in config file
-    if (!forward_base_uri) throw new Error("Missing the base uri to forward to.");
-    let parsed_uri = new URL(forward_base_uri);
-    if (parsed_uri.search) throw new Error("Search path is not implemented yet for forward base uri.");
-    if (!parsed_uri.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsed_uri.protocol}).`);
-    debug(forward_base_uri);
-    this._forward_base_uri = parsed_uri;
+    if (!forwardBaseUri) throw new Error("Missing the base uri to forward to.");
+    let parsedUrl = new URL(forwardBaseUri);
+    if (parsedUrl.search) throw new Error("Search path is not implemented yet for forward base uri.");
+    if (!parsedUrl.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsedUrl.protocol}).`);
+    debug(forwardBaseUri);
+    this._forward_base_uri = parsedUrl;
     this._ws = ws;
     this._activeChannels = {};
   }
 
   handle_request(message) {
-    const eventId = message.event,
-          channelId = message.channel;
+    const channelId = message.channel;
 
-    switch(eventId) {
-      case 'headers':
-        this._registerChannel(
-          new Channel(channelId, this, (channel)=> {
-            this._destroyChannel(channel);
-          }).onHeader(message)
-        );
-        break;
-      case 'data':
-        this._activeChannels[channelId].onData(message);
-        break;
-      case 'end':
-        this._activeChannels[channelId].onEnd(message);
-        break;
-      default:
-        throw new Error(`Invalid message event ${eventId}.`);
+    let channel;
+    if (!this._activeChannels[channelId]) {
+      channel = new Channel(channelId, this, (channel)=> {
+        this._destroyChannel(channel);
+      });
+      this._registerChannel(channel);
+    } else {
+      channel = this._activeChannels[channelId];
     }
+    channel.onMessage(message);
   }
 
   _registerChannel(channel) {
     this._activeChannels[channel.id] = channel;
-    channel.destructorCallack
   }
 
 
-  _destroyChannel(channelUrl) {
-    if (this._activeChannels[channelUrl]) {
-      debug(`destroying channel ${channelUrl}`);
-      delete this._activeChannels[channelUrl];
+  _destroyChannel(channel) {
+    if (this._activeChannels[channel.id]) {
+      debug(`destroying channel ${channel.id}`);
+      delete this._activeChannels[channel.id];
       return true;
     } else {
+      warning('Attempt to destroy channel which does not exist.');
       return false;
     }
   }
@@ -86,9 +77,6 @@ class Channel extends Object {
 
 
     this.timeout = handler.maxChannelLivespan;
-    this._timeoutTimer = setTimeout(() => {
-      this.request.emit('error', 'The request timed out.');
-    }, this.timeout);
   }
 
   _send(event, data) {
@@ -100,23 +88,21 @@ class Channel extends Object {
       debug(`<:  ${this.id}:  ${event} ${this.id} ${this.url}`);
     }
 
-    if (event == 'end' || event == 'error') {
-      this.destructor();
-    }
     this.ws.send(this.id, event, data);
   }
 
   onMessage(message) {
     const event = message.event;
-    if (this[event]) {
-      this[event](message);
+    const eventHandler = `on_${event}`;
+    if (this[eventHandler]) {
+      this[eventHandler](message);
     } else {
-      error(`Invalid event received for url ${this.url}, channel ${this.id}.`);
+      throw new Error(`Invalid event ${event} received for url ${this.url}, channel ${this.id}.`);
     }
     return this;
   }
 
-  onHeader(message) {
+  on_headers(message) {
     const ireq = message.data;
     debug(`< ${this.id}:  ${ireq.method} ${ireq.url}`);
     const forwardToUrl = new URL(this.forwardTo); // clone the original uri
@@ -139,8 +125,21 @@ class Channel extends Object {
       res.on('data', this.onHttpData.bind(this));
       res.on('end', this.onHttpEnd.bind(this));
     });
+    this._timeoutTimer = setTimeout(() => {
+      this.request.emit('error', 'The request timed out.');
+    }, this.timeout);
     this.request.on('error', this.onHttpError.bind(this));
     return this;
+  }
+
+  on_data(message) {
+    debug(`  :> data`);
+    this.request.write(message.data);
+  }
+
+  on_end() {
+    debug(` :> ${this.id} end`);
+    this.request.end();
   }
 
   onHttpData(chunk) {
@@ -157,20 +156,10 @@ class Channel extends Object {
     this.destructor();
   }
 
-  onData(message) {
-    debug(`  :> data`);
-    this.request.write(message.data);
-  }
-
-  onEnd() {
-    debug(` :> ${this.id} end`);
-    this.request.end();
-  }
-
   destructor() {
     // TODO: cleanup
     clearTimeout(this._timeoutTimer);
-    if (this.destructorCallack) this.destructorCallack(this);
+    this.destructorCallack(this);
   }
 
 }
@@ -193,7 +182,7 @@ class WebSockProxyClient extends Object {
     requestTimeout=5000,
   }) {
     if (this.ws_) {
-      throw new Error('Attemt to open connection while there is active socket already.');
+      throw new Error('The client is already connected.');
     }
     this.ws_ = new this.__web_socket(`${wsServer}${websocketPath}/${this.key}`);
     const ws = new Messanger(this.ws_);
@@ -204,9 +193,8 @@ class WebSockProxyClient extends Object {
       requestForwarder.maxChannelLivespan = requestTimeout;
       info("Client connection openned.");
 
-      ws.send('/', 'test', {data:"Hallo."});
       ws.on("message", requestForwarder.on_message.bind(requestForwarder));
-      ws.on("close", function onClose() {
+      this.ws_.on("close", function onClose() {
         info("Server connection closed.");
       });
     });
@@ -218,7 +206,7 @@ class WebSockProxyClient extends Object {
       this.ws_.close();
       delete(this.ws_);
     } else {
-      warning(`Attempt to close connection while there is no active socket yet.`);
+      throw new Error('Client is not connected.');
     }
   }
 }

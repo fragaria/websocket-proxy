@@ -76,5 +76,4 @@ if (require.main == module) {
 
   new Client(clientKey, forwardTo).connect(serverUrl);
 
-
 }

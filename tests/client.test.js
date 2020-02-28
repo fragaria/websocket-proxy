@@ -7,7 +7,7 @@ const test = require('ava'),
       { packMessage, unpackMessage } = require('../server/ws-message');
 
 
-function setup(request, response) {
+function setup(response) {
   const key = "client.test.js",
         requestMock = new RequestMock(new IncommingResponseMock(response)),
         client = new WebSockProxyClient(key),
@@ -25,6 +25,7 @@ function setup(request, response) {
   });
   context.ws = MessagingMock.__lastInstance;
   context.ws.emit('open');
+  context.client = client;
   return context;
 }
 
@@ -33,7 +34,7 @@ test('send request', t => {
   const httpRequest = { method: 'get', url: '/x-url', headers: {'x-h': 'x-v'}, data: 'xyz'}
   const httpResponse = { statusCode: 200, statusMessage: 'OK', headers: {'x-r': 'x-r'}, data: 'abc'}
 
-  const context = setup(httpRequest, httpResponse),
+  const context = setup(httpResponse),
         { ws, reqMock } = context;
   t.deepEqual(ws.__lastCall('constructor').arguments, [`${context.wsServer}${context.websocketPath}/${context.key}`]);
 
@@ -59,5 +60,39 @@ test('send request', t => {
   t.is(dataMessage.data, httpResponse.data);
   reqMock.__endResponse();
   t.is(unpackMessage(ws.__lastMessage).event, 'end');
+});
+
+test('invalid message event id throws an error', (t) => {
+  const { ws } = setup();
+  t.throws(
+    ()=>ws.emit('message', packMessage({ event: 'bad-event', channel: '/req/123'})),
+    {message: /.*bad-event.*/});
+});
+
+
+test('repeated connect throws an error', t => {
+  const context = setup({}, {});
+  t.throws(
+    ()=>context.client.connect(0, 0, 0),
+    {message: /connected/}
+  )
+});
+
+test('closing connection which was not open yet', t => {
+  const client = new WebSockProxyClient();
+  t.throws( ()=>client.close(), {message: /not connected/});
+});
+
+test.cb('message called when connection closed', t => {
+  const { ws } = setup(),
+        { logs, INFO } = require('../lib/logger');
+
+  let lastLog;
+  logs.once(INFO, (...args)=>lastLog = args);
+  ws.emit('close');
+  setImmediate(()=> {
+    t.assert(lastLog[0].match(/connection closed/));
+    t.end();
+  });
 
 });
