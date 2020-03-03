@@ -13,6 +13,7 @@
   "author": "",
   "license": "proprietary",
   "dependencies": {
+    "lodash": "^4.17.15",
     "merge": "^1.2.1",
     "ws": "^7.2.1"
   },
