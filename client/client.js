@@ -14,16 +14,19 @@ class RequestForwarder extends Object {
 
   constructor(ws, forwardBaseUri) {
     super();
-    this.__http = http; // entry point for code injection
-    this.maxChannelLivespan = 30000;  // in milliseconds FIXME: configuration should live in config file
     if (!forwardBaseUri) throw new Error("Missing the base uri to forward to.");
-    let parsedUrl = new URL(forwardBaseUri);
+    const parsedUrl = new URL(forwardBaseUri);
     if (parsedUrl.search) throw new Error("Search path is not implemented yet for forward base uri.");
     if (!parsedUrl.protocol.match(/^https?:$/i)) throw new Error(`Only HTTP(s) protocol is implemented for forward base uri (got ${parsedUrl.protocol}).`);
-    debug(forwardBaseUri);
+
+    this.maxChannelLivespan = 30000;  // in milliseconds FIXME: configuration should live in config file
     this._forward_base_uri = parsedUrl;
-    this._ws = ws;
+    /** @type {Object.<string, Channel>} */
     this._activeChannels = {};
+    /** @type {WebSocket} */
+    this._ws = ws;
+    /** @type {http} */
+    this.__http = http; // entry point for code injection
   }
 
   handle_request(message) {
@@ -41,11 +44,12 @@ class RequestForwarder extends Object {
     channel.onMessage(message);
   }
 
+  /** @param {Channel} channel */
   _registerChannel(channel) {
     this._activeChannels[channel.id] = channel;
   }
 
-
+  /** @param {Channel} channel */
   _destroyChannel(channel) {
     if (this._activeChannels[channel.id]) {
       debug(`destroying channel ${channel.id}`);
@@ -67,6 +71,15 @@ class RequestForwarder extends Object {
 exports.RequestForwarder = RequestForwarder;
 
 class Channel extends Object {
+  /**
+   * @callback DestructorCallback
+   * @param {Channel} channel
+   */
+  /**
+   * @param {string} id
+   * @param {RequestForwarder} handler
+   * @param {DestructorCallback} destructorCallack
+   */
   constructor(id, handler, destructorCallack) {
     super()
     this.id = id;
@@ -184,7 +197,9 @@ class WebSockProxyClient extends Object {
     if (this.ws_) {
       throw new Error('The client is already connected.');
     }
+    /** @type WebSocket */
     this.ws_ = new this.__web_socket(`${wsServer}${websocketPath}/${this.key}`);
+    /** @type WebSocket */
     const ws = new Messanger(this.ws_);
 
     ws.on('open', () => {
