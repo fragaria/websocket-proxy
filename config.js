@@ -1,6 +1,6 @@
 const fs   = require('fs'),
       path = require('path'),
-      _    = require('lodash');
+      merge    = require('merge');
 
 function val(envName, defaultValue) {
   return (process.env[envName]) ? process.env[envName] : defaultValue;
@@ -21,6 +21,6 @@ let CONFIG = {
 
 if (fs.existsSync(path.join(__dirname, 'config-local.js')) || fs.existsSync(path.join(__dirname, 'config-local/index.js'))) {
   let localConfig = require('./config-local');
-  CONFIG = _.merge(CONFIG, localConfig);
+  CONFIG = merge.recursive(CONFIG, localConfig);
 }
 module.exports = CONFIG;
