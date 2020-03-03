@@ -3,7 +3,6 @@
 
 const { checksum } = require('../lib'),
       { getLogger } = require('../lib/logger'),
-      uuid = require('uuid'),
       { HttpError, BadGateway, NotFound } = require('./HttpError'),
       { packMessage, unpackMessage} = require('./ws-message');
 
@@ -19,7 +18,7 @@ class ForwardedRequest extends Object {
     if (! client.webSocket) throw new BadGateway();
     this.request = request;
     this.response = response;
-    this.id = uuid.v4();
+    this.id = (Math.random()*10e10).toString(16);
     this.client = client;
     this.target_path = resource_path;
     this.channelUrl = '/req/' + checksum(this.id, 6);
