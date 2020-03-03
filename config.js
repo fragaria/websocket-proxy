@@ -16,7 +16,7 @@ let CONFIG = {
     serverUrl: val('SERVER_URL', 'ws://localhost:8090'),
     forwardTo: val('FORWARD_TO', 'http://prusa3d.local'),
   },
-  logVerbosity: 3,
+  logVerbosity: val('VERBOSITY', 3),
 }
 
 if (fs.existsSync(path.join(__dirname, 'config-local.js')) || fs.existsSync(path.join(__dirname, 'config-local/index.js'))) {
