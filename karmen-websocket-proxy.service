@@ -1,0 +1,20 @@
+[Unit]
+Description=Karmen websocket proxy tunnel client
+After=network.target
+
+[Service]
+ExecStart=node client
+Restart=always
+# delay between restart executions
+RestartSec=1000
+# how many times to try to restart the service in StartLimitIntervalSec
+# StartLimitBurst=
+# StartLimitIntervalSec=
+User=pi
+Group=pi
+Environment=PATH=/usr/bin:/usr/local/bin
+EnvironmentFile=/etc/karmen_websocket_proxy.conf
+WorkingDirectory=/opt/karmen_websocket_proxy
+
+[Install]
+WantedBy=multi-user.target
