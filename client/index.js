@@ -22,7 +22,7 @@ function usage() {
 function die(message, {edify=true}={}) {
   if (edify) usage();
   if (message) error(message);
-  process.exit();
+  process.exit(1);
 }
 
 function Client(key, forwardTo) {
@@ -45,7 +45,7 @@ function Client(key, forwardTo) {
         })
         .on('close', function clientOnClose() {
           info('Connection closed, exitting.');
-          process.exit();
+          process.exit(1);
         })
         .on('error', reject)
         .on('open', ()=> {
