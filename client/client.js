@@ -127,6 +127,9 @@ class Channel extends Object {
     }
     info(` > ${this.id}:  ${ireq.method} ${ireq.url} -> ${forwardToUrl.toString()}`);
     this.url = forwardToUrl.toString();
+    this._timeoutTimer = new Timer(() => {
+      this.request.emit('error', 'The request timed out.');
+    }, this.timeout);
     this.request = this.http.request(this.url, requestParameters, (res) => {
       // res.setEncoding('utf8');
       debug(`<:  ${this.id}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${forwardToUrl.pathname}`);
@@ -135,18 +138,17 @@ class Channel extends Object {
         statusMessage: res.statusMessage,
         headers: res.headers,
       });
+      this._timeoutTimer.reset();
       res.on('data', this.onHttpData.bind(this));
       res.on('end', this.onHttpEnd.bind(this));
     });
-    this._timeoutTimer = setTimeout(() => {
-      this.request.emit('error', 'The request timed out.');
-    }, this.timeout);
     this.request.on('error', this.onHttpError.bind(this));
     return this;
   }
 
   on_data(message) {
-    debug(`  :> data`);
+    debug(`  :> ${this.id} data`);
+    this._timeoutTimer.reset();
     this.request.write(message.data);
   }
 
@@ -156,6 +158,7 @@ class Channel extends Object {
   }
 
   onHttpData(chunk) {
+    this._timeoutTimer.reset();
     this._send('data', chunk);
   }
 
@@ -165,13 +168,14 @@ class Channel extends Object {
   }
 
   onHttpError(error) {
+    console.log(error);
     this._send('error', error);
     this.destructor();
   }
 
   destructor() {
     // TODO: cleanup
-    clearTimeout(this._timeoutTimer);
+    this._timeoutTimer.cancel()
     this.destructorCallack(this);
   }
 
@@ -223,6 +227,24 @@ class WebSockProxyClient extends Object {
     } else {
       throw new Error('Client is not connected.');
     }
+  }
+}
+
+class Timer extends Object {
+  constructor(callback, duration) {
+    super();
+    this.callback = callback;
+    this.duration = duration;
+    this.reset(callback, duration);
+  }
+
+  reset() {
+    this.cancel();
+    this._timer = setTimeout(this.callback, this.duration);
+  }
+
+  cancel() {
+    clearTimeout(this._timer);
   }
 }
 

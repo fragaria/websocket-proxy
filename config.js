@@ -17,6 +17,7 @@ let CONFIG = {
     forwardTo: val('FORWARD_TO', 'http://prusa3d.local'),
   },
   logVerbosity: val('VERBOSITY', 3),
+  requestTimeout: val('REQUEST_TIMEOUT', 30000),
 }
 
 if (fs.existsSync(path.join(__dirname, 'config-local.js')) || fs.existsSync(path.join(__dirname, 'config-local/index.js'))) {
