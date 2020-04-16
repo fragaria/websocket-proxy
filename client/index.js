@@ -74,6 +74,6 @@ if (require.main == module) {
   forwardTo: ${forwardTo}
   `);
 
-  new Client(clientKey, forwardTo).connect(serverUrl, {requestTimeout: config.requestTimeout});
+  new Client(clientKey).connect(serverUrl, {requestTimeout: config.requestTimeout, forwardTo: forwardTo});
 
 }
