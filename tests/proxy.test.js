@@ -37,7 +37,7 @@ test('big binary data download', t => {
     .reply(200, payload);
   return makeRequest('/api/client-1/some-big-file',).then((res) => {
     t.is(res.statusCode, 200);
-    t.assert(res.body.length > 1);
+    t.is(res.fullBody.length, payload.length);
     t.deepEqual(res.fullBody, payload);
   });
 });
