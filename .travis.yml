@@ -1,7 +1,9 @@
 language: node_js
+node_js:
+  - "4"
 
 services:
-  - docker
+  - docker # used to build and push packages to docker (see deploy)
 
 deploy:
   provider: script
