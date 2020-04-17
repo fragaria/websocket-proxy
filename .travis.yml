@@ -7,8 +7,8 @@ services:
 
 deploy:
   on:
-    branch: master
-  if: tag IS present  # only deploy tagged commits
+    branch: master # deploy from master only
+    tags: true  # only deployt tagged changes
 
   # run script to push to docker
   provider: script
