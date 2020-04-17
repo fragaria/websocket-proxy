@@ -225,7 +225,6 @@ class WebSockProxyClient extends Object {
 
   close() {
     if (this.ws_) {
-      this.ws_.close();
       delete(this.ws_);
     } else {
       throw new Error('Client is not connected.');
