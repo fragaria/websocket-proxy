@@ -7,6 +7,6 @@ services:
 
 deploy:
   provider: script
-  script: bash .travis/docker_push.sh
+  script: bash .travis/docker-push.sh
   on:
     branch: master
