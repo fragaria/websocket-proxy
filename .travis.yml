@@ -5,6 +5,7 @@ node_js:
 services:
   - docker # used to build and push packages to docker (see deploy)
 
+if: tag IS present
 deploy:
   provider: script
   script: bash .travis/docker-push.sh
