@@ -1,3 +1,5 @@
+# the script expects  the websocket proxy installed in /opt. If you install it
+# elsewhere, please update WorkingDirectory accordingly
 [Unit]
 Description=Karmen websocket proxy tunnel client
 After=network.target
@@ -13,8 +15,8 @@ RestartSec=1000
 User=pi
 Group=pi
 Environment=PATH=/usr/bin:/usr/local/bin
-EnvironmentFile=/etc/karmen_websocket_proxy.conf
-WorkingDirectory=/opt/karmen_websocket_proxy
+EnvironmentFile=/etc/websocket_proxy.conf
+WorkingDirectory=/opt/websocket_proxy
 
 [Install]
 WantedBy=multi-user.target

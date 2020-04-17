@@ -43,8 +43,25 @@ Now open your browser and paste url:
 `http://localhost:8090/api/random-client-id/` and voilà, what a nice bug you
 see.
 
+Install client as a systemd service
+===
+
+   # install the application to a well known location
+   git clone https://github.com/fragaria/websocket-proxy.git
+   sudo cp -ax websocket-proxy /opt/websocket-proxy
+   sudo mv /opt/websocket-proxy.service /etc/systemd/system
+   sudo mv /opt/websocket_proxy.conf /etc
+
+   # now update /etc/websocket_proxy.conf
+   # according to your configuration ...
+
+   # finally enable the installed service
+   sudo systemctl daemon-reload
+   sudo systemctl enable websocket-proxy
+
+
 
 RUN TESTS
 ---
 
-npm tst
+npm test
