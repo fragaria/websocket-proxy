@@ -1,0 +1,14 @@
+language: javascript
+
+services:
+  - docker
+
+before_install:
+  - docker build -t fragaria/websocket-proxy:latest .
+  - docker run --rm fragaria/websocket-proxy:latest /bin/sh -c 'cd /usr/src/app && npm install && npm test'
+
+deploy:
+  provider: script
+  script: bash .travis/docker_push.sh
+  on:
+    branch: master
