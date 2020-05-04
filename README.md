@@ -1,67 +1,98 @@
+# websocket-proxy
 
-INSTALLATION
-----
+This package provides a websocket proxy that allows you to overcome networking
+difficulties when connecting services running in isolated networks to a cloud.
 
-    # install node and npm
-    sudo apt install nodejs npm  # it's roughly 50MB :(
+It does that by providing a websocket channel that proxies local port to
+the remote server.
 
-    # clone the repository
-    git clone https://github.com/czervenka/ws-proxy-poc.git
-    cd ws-proxy-poc
 
-    # install dependencies
-    npm install
+## Installation
 
-    # run either
-    node run server
+```
+# install node and npm
+sudo apt install nodejs npm  # it's roughly 50MB :(
 
-    # or client
-    node run client
+# clone the repository
+git clone https://github.com/fragaria/websocket-proxy.git
+cd websocket-proxy
 
-    # test with
-    client_key=client-1
-    curl localhost:8090/api/$client_key/__ping__ # path is the path to get from <forward-to-host>
+# install dependencies
+npm install
+```
 
-Create websocket_proxy.server as docker image
-----
-    # clone this repository
-    git clone https://github.com/fragaria/websocket-proxy.git
-    cd websocket-proxy
+## Running a server
 
-    # build docker image
-    docker build -t fragaria/websocket-proxy:latest .
+This will make isolated services available in the cloud.
 
-    # create docker container
-    docker create -p 127.0.0.1:8090:8090 --name websocket-proxy fragaria/websocket-proxy:latest
-    docker start websocket-proxy
+```
+node run server
+```
 
-    # to test
-    # connect a client
-    node client random-client-id http://localhost:8090 http://weevil.info/
+By default, server launches on port **8090**.
+
+## Connecting a client to the server
+
+Using websocket-proxy client, you can connect your service in your isolated
+network to the cloud-hosted websocket-proxy server.
+
+Assuming you have a running server on `http://ws.yourdomain.com`, you can
+expose your local port 80 like this:
+
+```
+# Connect local port to the cloud-hosted proxy server
+client_key=myclient-1
+node client $client_key http://ws.yourdomain.com http://localhost:80
+
+# Test your local port is available
+curl http://ws.yourdomain.com/api/$client_key/
+```
+
+Note the **trailing slash**: **it has to be present**!
+
+## Creating websocket_proxy.server as docker image
+
+```
+# Clone this
+git clone https://github.com/fragaria/websocket-proxy.git
+cd websocket-proxy
+
+# Build docker image
+docker build -t fragaria/websocket-proxy:latest .
+
+# Start docker container
+docker create -p 127.0.0.1:8090:8090 --name websocket-proxy fragaria/websocket-proxy:latest
+docker start websocket-proxy
+
+# Test connecting a client
+node client random-client-id http://localhost:8090 http://weevil.info/
+```
 
 Now open your browser and paste url:
 `http://localhost:8090/api/random-client-id/` and voilà, what a nice bug you
 see.
 
-Install client as a systemd service
-===
+## Installing client as a systemd service
 
-   # install the application to a well known location
-   git clone https://github.com/fragaria/websocket-proxy.git
-   sudo cp -ax websocket-proxy /opt/websocket-proxy
-   sudo mv /opt/websocket-proxy.service /etc/systemd/system
-   sudo mv /opt/websocket_proxy.conf /etc
+Install the application to a well known location:
 
-   # now update /etc/websocket_proxy.conf
-   # according to your configuration ...
+```
+git clone https://github.com/fragaria/websocket-proxy.git
+sudo cp -ax websocket-proxy /opt/websocket-proxy
+sudo mv /opt/websocket-proxy.service /etc/systemd/system
+sudo mv /opt/websocket_proxy.conf /etc
+```
 
-   # finally enable the installed service
-   sudo systemctl daemon-reload
-   sudo systemctl enable websocket-proxy
+Now modify `/etc/websocket_proxy.conf` accoring to your needs. Finally, enable
+the installed service:
 
+```
+sudo systemctl daemon-reload
+sudo systemctl enable websocket-proxy
+```
 
+## Running tests
 
-RUN TESTS
----
-
+```
 npm test
+```
