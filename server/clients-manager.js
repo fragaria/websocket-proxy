@@ -7,22 +7,19 @@ const EventEmitter               = require('events'),
       { debug, info }            = require('../lib/logger');
 
 class ClientsManager extends Object {
-  constructor({allowed_keys=[], path_prefix='/ws'}={}) {
+  constructor({path_prefix = '/ws', authenticate = undefined} = {}) {
     super();
     this.events = new EventEmitter();
-    if (allowed_keys === true) {
-      this.allowed_keys = true;
-    } else {
-      this.allowed_keys = new Set(allowed_keys);
-    }
     this._clients_by_id = {};
     this.path_prefix = path_prefix;
     this.messageSubscribers = [];
+    this.authenticator = authenticate;
   }
 
-  makeClient(clientKey) {
+  makeClient(clientKey, clientInfo) {
     let client = new EventEmitter();
     client.id = checksum(clientKey);
+    client.info = clientInfo;
     return client;
   }
 
@@ -31,12 +28,19 @@ class ClientsManager extends Object {
     const match = request.url.match(new RegExp(`^${this.path_prefix}/(?<client_key>.*)$`));
     if (! match) return callback(new Error("Unknown url."));
     if (this.clientFromId(match.groups.client_key)) return callback(new BadRequest("The key is already used by another client."));
-    if (this.allowed_keys === true || this.allowed_keys.has(match.groups.client_key)) {
-      debug(`Key ${match.groups.client_key} accepted`);
-      callback(null, this.makeClient(match.groups.client_key));
+    const clientKey = match.groups.client_key;
+    if (this.authenticator) {
+      this.authenticator(clientKey, request, socket)
+        .then((clientInfo) => {
+          debug(`Key ${match.groups.client_key} accepted`);
+          callback(null, this.makeClient(clientKey, clientInfo));
+        })
+        .catch((error) => {
+          info(`Error authenticating user '${clientKey}': ${error}.`);
+          callback(new Unauthorized(error, null));
+        });
     } else {
-      info('Invalid key');
-      callback(new Unauthorized("Invalid key."), null);
+      callback(null, this.makeClient(clientKey));
     }
   }
 

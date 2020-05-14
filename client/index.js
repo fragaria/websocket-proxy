@@ -32,20 +32,14 @@ function Client(key, forwardTo) {
   this.connect = function connect(serverUrl, config={forwardTo:forwardTo}) {
     return new Promise((resolve, reject) => {
       const connection = this.wsProxy.connect(serverUrl, config);
-      connection.on('error', function clientError(err) {
-        error(`An error occured while connecting to ${serverUrl}.
+      connection
+        .on('error', function clientError(err) {
+          error(`An error occured while connecting to ${serverUrl}.
 
             Error: ${err}.
 
             Make sure the server is running on the address port specified?
             `);
-      })
-        .on('open', function clientOnConnect() {
-          info(`Tunnel ${serverUrl} -> ${config.forwardTo} set up and ready.`);
-        })
-        .on('close', function clientOnClose() {
-          info('Connection closed, exitting.');
-          process.exit(1);
         })
         .on('error', reject)
         .on('open', ()=> {
@@ -74,6 +68,15 @@ if (require.main == module) {
   forwardTo: ${forwardTo}
   `);
 
-  new Client(clientKey).connect(serverUrl, {requestTimeout: config.requestTimeout, forwardTo: forwardTo});
-
+  new Client(clientKey)
+    .connect(serverUrl, {requestTimeout: config.requestTimeout, forwardTo: forwardTo}).then((client) => {
+      client.wsProxy
+        .on('open', function clientOnConnect() {
+          info(`Tunnel ${serverUrl} -> ${config.forwardTo} set up and ready.`);
+        })
+        .on('close', function clientOnClose() {
+          info('Connection closed, exitting.');
+        })
+        .on('close', () => process.exit(1));
+    });
 }

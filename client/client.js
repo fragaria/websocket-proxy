@@ -125,8 +125,8 @@ class Channel extends Object {
       headers: ireq.headers,
       search: ireq.search,
     }
-    if (requestParameters['headers'].host) {
-      delete requestParameters.headers['host'];
+    if (requestParameters.headers.host) {
+      delete requestParameters.headers.host;
     }
     info(` > ${this.id}:  ${ireq.method} ${ireq.url} -> ${forwardToUrl.toString()}`);
     this.url = forwardToUrl.toString();
