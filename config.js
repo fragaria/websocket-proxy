@@ -10,10 +10,10 @@ let CONFIG = {
   server: {
     host: val('ADDRESS', 'localhost'),
     port: val('PORT', '8090'),
-    // authenticator config
-    // null - no authenticator (allow any key to pass)
+    // key server url
+    // empty value means no authenticator (allow any key to connect)
     // http(s)://... - a url for key-master APIs
-    keyServerUrl: val('AUTHENTICATOR', undefined),
+    keyServerUrl: val('KEY_SERVER_URL', undefined),
   },
   client: {
     key: val('KEY', 'client-1'),
