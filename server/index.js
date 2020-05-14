@@ -7,6 +7,7 @@ const { debug, info, error } = require('../lib/logger');
 const setupWebsocketServer = require('./server');
 const Api = require('./api');
 const ClientsManager = require('./clients-manager');
+const { getAuthenticator } = require('./api-authenticator');
 
 /**
  * USAGE:
@@ -20,11 +21,16 @@ const ClientsManager = require('./clients-manager');
 `*
  */
 
-function Server() {
+function Server({keyServerUrl=null, keyServerIgoreForHostnames=null}={}) {
+
+  let authenticate;
+  if (keyServerUrl) {
+    authenticate = getAuthenticator(keyServerUrl, keyServerIgoreForHostnames);
+  }
 
   this.clientsManager = new ClientsManager({
-    allowed_keys: true,  // true - pass any key; a list - pass individual keys
     path_prefix: '/ws',
+    authenticate: authenticate, // callback to authenticate new client requests
   });
   this.apiServer = new Api( '/api', this.clientsManager);
   this.httpServer = http.createServer(this.apiServer.request_handler);
@@ -76,10 +82,13 @@ if (require.main == module) {
     [server_host, server_port] = [config.server.host, config.server.port];
   }
 
+
   debug(`
     config: ${server_host}:${server_port}
   `);
-
-  new Server().listen(server_port, server_host);
+  new Server({
+    keyServerUrl: config.server.keyServerUrl,
+    keyServerIgoreForHostnames: config.server.keyServerIgoreForHostnames}
+  ).listen(server_port, server_host);
 
 }

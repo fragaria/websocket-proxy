@@ -54,9 +54,14 @@ test.cb('resends request', t => {
   request.emit('data', Buffer.from(requestPayload));
   t.is(unpackMessage(ws.__lastMessage).data, requestPayload);
 
-  ws.__on('message', (message) => {
-    unpackMessage(message).event === 'end' && t.end();
-  });
+  function onMessage (message) {
+    if(unpackMessage(message).event === 'end') {
+      ws.__off('message', onMessage);
+      t.end();
+    }
+  }
+
+  ws.__on('message', onMessage);
   request.emit('end');
 
 });

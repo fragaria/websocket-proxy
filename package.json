@@ -1,6 +1,6 @@
 {
   "name": "karmen_ws",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "",
   "main": "client",
   "scripts": {
@@ -21,7 +21,8 @@
     "nock": "request mock"
   },
   "devDependencies": {
-    "ava": "^3.4.0",
+    "@ava/babel": "^1.0.1",
+    "ava": "^3.8.2",
     "eslint": "^6.8.0",
     "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.20.1",
@@ -30,5 +31,8 @@
     "nyc": "^15.0.0",
     "prettier": "^1.19.1",
     "sinon": "^9.0.0"
+  },
+  "ava": {
+    "babel": true
   }
 }

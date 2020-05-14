@@ -2,6 +2,9 @@ FROM node:13-alpine
 
 ENV ADDRESS 0.0.0.0
 ENV PORT 8090
+ENV KEY_SERVER_URL ''
+ENV KEY_SERVER_IGNORE_FOR_HOSTNAMES ''
+ENV VERBOSITY 3
 
 # Create app directory
 WORKDIR /usr/src/app

@@ -94,7 +94,7 @@ class MessagingMock extends Mock {
     super(...args);
     this.__emitter = new EventEmitter();
     this.__theOther = new EventEmitter();
-    this.__monitor('on', 'send', 'emit');
+    this.__monitor('on', 'off', 'send', 'emit');
     this.__messages = [];
   }
 
@@ -114,6 +114,10 @@ class MessagingMock extends Mock {
 
   __on(...args) {
     return this.__theOther.on(...args);
+  }
+
+  __off(...args) {
+    return this.__theOther.off(...args);
   }
 
   get __lastMessage() {

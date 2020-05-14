@@ -31,6 +31,16 @@ node run server
 
 By default, server launches on port **8090**.
 
+Server accepts these environamental variables:
+
+- ADDRESS ... TCP/IP address to listen on (default: localhost)
+- PORT: ... TCP/IP port number to bind to (default: 8090)
+- KEY_SERVER_URL ... URL to a key server. When set, WS Server will call GET
+  request on ``<KEY_SERVER_URL>/key/<client-key>"```. If the othe party
+  responds with other status code than 200, the connecting client is
+  immediatelly disconnected.
+  If KEY_SERVER_URL is undefined, client with any key can connect (default: undefined).
+
 ## Connecting a client to the server
 
 Using websocket-proxy client, you can connect your service in your isolated
