@@ -14,7 +14,7 @@ test('connection is closed with wrong key', t => {
   return client.connect(`ws+unix://${socketFilePath}:`, clientConfig)
     .catch((err) => {
       t.is(err.code, 'ECONNRESET');
-    });
+    })
 });
 
 test('connection accepted with a valid key', t => {
@@ -34,8 +34,12 @@ test.before(t => {
         invalidKey = 'some-invalid-key',
         validKeyResponse = {sub: 'userinfo', iss: 'iss'},
         authServerUri = 'http://authserveruri.example.com',
+        keyServerIgoreForHostnames = 'a.example.com,b.example.com',
         Server = require('../server'),
-        server = new Server(authServerUri);
+        server = new Server({
+          keyServerUrl: authServerUri,
+          keyServerIgoreForHostnames: keyServerIgoreForHostnames,
+        });
 
   nock(`${authServerUri}`).persist().get(`/key/${validKey}`).reply(200, validKeyResponse);
   nock(`${authServerUri}`).persist().get(`/key/${invalidKey}`).reply(422);

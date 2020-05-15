@@ -21,11 +21,11 @@ const { getAuthenticator } = require('./api-authenticator');
 `*
  */
 
-function Server(keyServerUrl) {
+function Server({keyServerUrl=null, keyServerIgoreForHostnames=null}={}) {
 
   let authenticate;
   if (keyServerUrl) {
-    authenticate = getAuthenticator(keyServerUrl);
+    authenticate = getAuthenticator(keyServerUrl, keyServerIgoreForHostnames);
   }
 
   this.clientsManager = new ClientsManager({
@@ -86,7 +86,9 @@ if (require.main == module) {
   debug(`
     config: ${server_host}:${server_port}
   `);
-
-  new Server(config.server.keyServerUrl).listen(server_port, server_host);
+  new Server({
+    keyServerUrl: config.server.keyServerUrl,
+    keyServerIgoreForHostnames: config.server.keyServerIgoreForHostnames}
+  ).listen(server_port, server_host);
 
 }
