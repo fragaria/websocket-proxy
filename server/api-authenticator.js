@@ -2,12 +2,13 @@
 // vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const http = require('http'),
       path = require('path'),
-      { debug, info } = require('../lib/logger');
+      { debug } = require('../lib/logger');
 
 class InvalidKey extends Error { }
 exports.InvalidKey = InvalidKey;
 
 function fetchJson(url, options) {
+  debug(`fetching ${url}`);
   return new Promise((resolve, reject) => {
     const req = http.request(url, options, res => {
       let dataChunks = [];
@@ -15,17 +16,23 @@ function fetchJson(url, options) {
       res.on('end', () => {
         let responseBody = dataChunks.join('');
         if (res.statusCode == 200) {
+          debug(`auth server: 200 - key accepted`);
           resolve(JSON.parse(responseBody));
         } else if (res.statusCode == 422) {
-          reject(new InvalidKey());
+          debug(`auth server: 422 - invalid key`);
+          reject(new InvalidKey('Invalid key'));
         } else {
+          debug(`key server returned ${res.statusCode}.`);
           const err = new Error('Error getting response from auth server.');
           err.res = res;
           reject(err)
         }
       });
     });
-    req.on('error', error => reject(error));
+    req.on('error', error => {
+      debug(`Error sending response: ${error}`);
+      reject(error);
+    }),
     req.end();
   });
 }
@@ -47,15 +54,18 @@ exports.getAuthenticator = function getAuthenticator(authenticatorUri, privateHo
       result = Promise.resolve({authenticated: false});
     } else {
       debug(`Authenticating ${key} from ${request.headers.host} to ${authenticatorUri}.`);
-      result = fetchJson(
-        path.join(authenticatorUri, '/key', key)
-      )
+      let url = new URL(authenticatorUri);
+      url.pathname = path.join(url.pathname, '/key', key);
+      result = fetchJson(url.toString())
         .then((response) => {
           debug(`Key ${key} authenticated.`);
           return {authenticated: true, token: response}
         })
         .catch((err) => {
           debug(`Key ${key} authentication failed: ${err}.`);
+          if(!(err instanceof InvalidKey)) {
+            debug(err);
+          }
           throw err;
         });
 
