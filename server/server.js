@@ -26,8 +26,8 @@ function setupWebsocketServer(httpServer, clientsManager) {
     clientsManager.authenticate(request, socket, (err, client) => {
       if (err || !client) {
         debug("Destroying connection");
-        // socket.destroy();
         socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n','ascii');
+        socket.destroy();
         return;
       }
 
