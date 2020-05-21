@@ -1,0 +1,21 @@
+# the script expects  the websocket proxy installed in /opt. If you install it
+# elsewhere, please update WorkingDirectory accordingly
+[Unit]
+Description=Karmen websocket proxy tunnel server
+After=network.target
+
+[Service]
+ExecStart=npm run server
+Restart=always
+# delay between restart executions
+RestartSec=1000
+# how many times to try to restart the service in StartLimitIntervalSec
+# StartLimitBurst=
+# StartLimitIntervalSec=
+User=fragaria
+Group=fragaria
+Environment=PATH=/usr/bin:/usr/local/bin
+EnvironmentFile=/opt/websocket-proxy/websocket-server-proxy.conf
+WorkingDirectory=/opt/websocket-proxy
+[Install]
+WantedBy=multi-user.target
