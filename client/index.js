@@ -78,5 +78,8 @@ if (require.main == module) {
           info('Connection closed, exitting.');
         })
         .on('close', () => process.exit(1));
+    }).catch((err) => {
+      console.error(err);
+      process.exit(1);
     });
 }

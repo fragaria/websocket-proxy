@@ -13,7 +13,7 @@ test('connection is closed with wrong key', t => {
 
   return client.connect(`ws+unix://${socketFilePath}:`, clientConfig)
     .catch((err) => {
-      t.is(err.code, 'ECONNRESET');
+      t.assert(err.toString().indexOf('response: 401')>=0);
     })
 });
 
