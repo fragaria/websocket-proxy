@@ -23,7 +23,7 @@ test('connection accepted with a valid key', t => {
         clientConfig = { forwardTo: 'http://example.com/' };
 
   return client.connect(`ws+unix://${socketFilePath}:`, clientConfig)
-    .then((client) => {
+    .then(() => {
       t.pass('Client connected.');
       client.close();
     });

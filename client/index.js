@@ -44,7 +44,7 @@ function Client(key, forwardTo) {
         .on('error', reject)
         .on('open', ()=> {
           connection.off('error', reject);
-          resolve(self);
+          resolve(connection);
         });
     });
   }
@@ -69,8 +69,8 @@ if (require.main == module) {
   `);
 
   new Client(clientKey)
-    .connect(serverUrl, {requestTimeout: config.requestTimeout, forwardTo: forwardTo}).then((client) => {
-      client.wsProxy
+    .connect(serverUrl, {requestTimeout: config.requestTimeout, forwardTo: forwardTo}).then((connection) => {
+      connection
         .on('open', function clientOnConnect() {
           info(`Tunnel ${serverUrl} -> ${config.forwardTo} set up and ready.`);
         })
