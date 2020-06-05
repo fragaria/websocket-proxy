@@ -157,7 +157,12 @@ class Channel extends Object {
 
   on_end() {
     debug(` :> ${this.id} end`);
-    this.request.end();
+    if (this.request) {
+      this.request.end();
+    } else {
+      warning(`Received end before I was able to create a request.`);
+      setTimeout(()=>console.log(`Request: ${this.request}`), 100);
+    }
   }
 
   onHttpData(chunk) {
