@@ -3,6 +3,7 @@
 
 const WebSocket = require('ws'),
       config = require('../config'),
+      { unpackMessage } = require('./ws-message'),
       { debug, DEBUG } = require('../lib/logger');
 
 /*
@@ -21,8 +22,11 @@ function setupWebsocketServer(httpServer, clientsManager) {
     });
   }
 
+  /**
+   * Called when client requests upgrade to WebSocket
+   */
   httpServer.on('upgrade', function upgrade(request, socket, head) {
-    debug("Upgrading protocol.");
+    debug("Upgrading protocol to websocket.");
     clientsManager.authenticate(request, socket, (err, client) => {
       if (err || !client) {
         debug("Destroying connection");
@@ -36,7 +40,7 @@ function setupWebsocketServer(httpServer, clientsManager) {
           debug(`Client ${client.id} closed connection.`);
           clientsManager.onClose(ws, client);
         });
-        ws.on('message', (message)=>clientsManager.onMessage(message, ws, client));
+        ws.on('message', (message)=>clientsManager.onMessage(unpackMessage(message), ws, client));
         clientsManager.onConnected(ws, client);
         ws.client_object = client;
         webSocketServer.emit('connection', ws, request, client);

@@ -25,9 +25,13 @@ function Server({keyServerUrl=null, keyServerIgoreForHostnames=null}={}) {
 
   let authenticate;
   if (keyServerUrl) {
+    // function to use to authenticate client upon connection
     authenticate = getAuthenticator(keyServerUrl, keyServerIgoreForHostnames);
   }
 
+  /**
+   * Clients Manager handles connected clients, authentiacets
+   */
   this.clientsManager = new ClientsManager({
     path_prefix: '/ws',
     authenticate: authenticate, // callback to authenticate new client requests

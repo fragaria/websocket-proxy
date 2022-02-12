@@ -41,6 +41,10 @@ Server accepts these environamental variables:
   immediatelly disconnected.
   If KEY_SERVER_URL is undefined, client with any key can connect (default: undefined).
 
+## Configuration file
+
+TODO: add info about config.js and it's values
+
 ## Connecting a client to the server
 
 Using websocket-proxy client, you can connect your service in your isolated

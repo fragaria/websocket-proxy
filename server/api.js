@@ -3,8 +3,7 @@
 
 const { checksum } = require('../lib'),
       { getLogger } = require('../lib/logger'),
-      { HttpError, BadGateway, NotFound } = require('./HttpError'),
-      { packMessage, unpackMessage} = require('./ws-message');
+      { HttpError, BadGateway, NotFound } = require('./HttpError');
 
 const debug    = getLogger.debug({prefix: '\u001b[33mS:d', postfix: '\u001b[0m\n'}),
       info     = getLogger.info({prefix: '\u001b[32mS/i', postfix: '\u001b[0m\n'}),
@@ -15,7 +14,7 @@ const debug    = getLogger.debug({prefix: '\u001b[33mS:d', postfix: '\u001b[0m\n
 class ForwardedRequest extends Object {
   constructor(request, response, resource_path, client) {
     super();
-    if (! client.webSocket) throw new BadGateway();
+    if (! client.webSocket) throw new BadGateway("The other site is not connected.");
     this.request = request;
     this.response = response;
     this.id = (Math.random()*10e10).toString(16);
@@ -94,7 +93,7 @@ class ForwardedRequest extends Object {
       event: eventId,
       data: payload,
     };
-    this.client.webSocket.send(packMessage(message));
+    this.client.send(message);
   }
 
 
@@ -122,7 +121,6 @@ class Api extends Object {
   }
 
   __onClientMessage(message) {
-    message = unpackMessage(message);
     const channelUrl = message.channel;
     const channel = this._activeChannels[channelUrl];
     if (channel) {
@@ -130,6 +128,9 @@ class Api extends Object {
     }
   }
 
+  /**
+   * Forwards API request to and from the device.
+   */
   _request_handler(req, res) {
     info(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
     let path_info = this._parse_request_path(req);
@@ -155,12 +156,18 @@ class Api extends Object {
     req.on('error', requestInstance.resendError.bind(requestInstance));
   }
 
+  /**
+   * Removes client when the connection was lost (disconnection or error)
+   */
   _removeClient(client) {
     client.off('message', this._onClientMessage);
     client.off('close', this._onClientClose);
     this._activeClients.delete(client.id);
   }
 
+  /**
+   * Registers new connected client (device)
+   */
   registerClient(client) {
     this._activeClients.add(client.id);
     client.on('message', this._onClientMessage);

@@ -1,10 +1,14 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 'use strict';
+
+const { setInterval } = require('timers');
+
 const path = require('path'),
       http = require('http'),
       WebSocket = require('ws'),
       { Messanger } = require('../server/ws-message'),
       { getLogger } = require('../lib/logger'),
+      config = require('../config'),
 
       debug   = getLogger.debug({prefix: '\u001b[34mC:d', postfix: '\u001b[0m\n'}),
       info    = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'}),
@@ -190,6 +194,48 @@ class Channel extends Object {
 }
 
 
+/**
+ * Plays ping-pong with server. When server stops playing throws an error.
+ * This allows client to restart when connection with server is closed without
+ * knowing.
+ */
+class PingPongGamer extends Object {
+
+  /**
+   * @param {Messanger} ws
+   */
+  constructor(ws) {
+    super();
+    this.pingInterval = config.keepAlivePingInterval * 1000;
+    this.ws = ws;
+    this.gotPong = true;
+    this.timers = setInterval(() => {this.ping();}, this.pingInterval);
+    debug('Starting ping-pong.');
+  }
+
+  onMessage(message) {
+    if (message.channel == 'ping-pong') {
+      if (message.event == 'pong') {
+        debug('Pong');
+        this.gotPong = true;
+      } else if (message.event == 'ping') {
+        this.ws.send(message.channel, 'pong');
+      }
+    }
+  }
+
+  ping() {
+    if (!this.gotPong) {
+      throw Error("Did not received pong after last ping.");
+    }
+    debug('Ping');
+    this.ws.send('ping-pong', 'ping');
+    this.gotPong = false;
+  }
+
+}
+
+
 class WebSockProxyClient extends Object {
 
   constructor(client_key) {
@@ -219,7 +265,9 @@ class WebSockProxyClient extends Object {
       requestForwarder.__http = this.__http;
       requestForwarder.maxChannelLivespan = requestTimeout;
       info("Client connection openned.");
+      let pingPong = new PingPongGamer(ws);
 
+      ws.on("message", pingPong.onMessage.bind(pingPong));
       ws.on("message", requestForwarder.on_message.bind(requestForwarder));
       this.ws_.on("close", function onClose() {
         info("Server connection closed.");

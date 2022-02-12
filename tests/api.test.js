@@ -27,6 +27,7 @@ test.before(t => {
   t.context = {
     apiUrl: `${basePath}/${clientKey}`,
     ws: ws,
+    client: client,
     api: api,
     request: request,
     response: response,
@@ -67,7 +68,7 @@ test.cb('resends request', t => {
 });
 
 test.cb('fails on error', t => {
-  const { request, response, ws, api, apiUrl } = t.context;
+  const { request, response, ws, api, apiUrl, client } = t.context;
   const targetPath =  '/something',
         requestData = { method: 'GET', url: `${apiUrl}${targetPath}`};
 
@@ -81,11 +82,11 @@ test.cb('fails on error', t => {
     unpackMessage(message).event == 'end' && t.end();
   });
   const serverResponse = { statusCode: 404, statusMessage: 'Not Found', headers: {a: 'b'}};
-  ws.emit('message', packMessage({
+  client.emit('message', {
     event: 'headers',
     channel: message.channel,
     data: serverResponse,
-  }));
+  });
   response.__assertCalled('writeHead', [serverResponse.statusCode, serverResponse.statusMessage, serverResponse.headers]);
   ws.emit('message', packMessage({
     event: 'end',

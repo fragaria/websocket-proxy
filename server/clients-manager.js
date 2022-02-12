@@ -1,10 +1,11 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 'use strict';
 
-const EventEmitter               = require('events'),
-      checksum                   = require('../lib').checksum,
-      {BadRequest, Unauthorized} = require('./HttpError'),
-      { debug, info }            = require('../lib/logger');
+const EventEmitter                  = require('events'),
+      checksum                      = require('../lib').checksum,
+      {BadRequest, Unauthorized}    = require('./HttpError'),
+      { packMessage }               = require('./ws-message'),
+      { debug, info }               = require('../lib/logger');
 
 class ClientsManager extends Object {
   constructor({path_prefix = '/ws', authenticate = undefined} = {}) {
@@ -20,6 +21,7 @@ class ClientsManager extends Object {
     let client = new EventEmitter();
     client.id = checksum(clientKey);
     client.info = clientInfo;
+    client.send = (message) => client.webSocket.send(packMessage(message));
     return client;
   }
 
@@ -47,7 +49,6 @@ class ClientsManager extends Object {
 
   onConnected (ws, client) {
     client.webSocket = ws;
-    client.webSocket.on('message', (message)=>client.emit('message', message, client));
     this._clients_by_id[client.id] = client;
     ws.id = client.id;
     client.emit('connected', client)
@@ -69,10 +70,18 @@ class ClientsManager extends Object {
   }
 
   onMessage(message, ws, client) {
-    this.events.emit('message', message, client),
-    this.messageSubscribers.forEach(function (subscriber) {
-      subscriber(message, ws, client);
-    });
+    if (message.channel == 'ping-pong') {
+      client.send({
+        channel: message.channel,
+        event: 'pong',
+      });
+    } else {
+      this.events.emit('message', message, client),
+      client.emit('message', message, client)
+      this.messageSubscribers.forEach(function (subscriber) {
+        subscriber(message, ws, client);
+      });
+    }
   }
 }
 
