@@ -101,6 +101,10 @@ class ForwardedRequest extends Object {
 
 class Api extends Object {
 
+  /**
+   * @param {string} path_prefix
+   * @param {ClientsManager} clientsManager
+   */
   constructor(path_prefix, clientsManager) {
     info(`Starting API with path prefix '${path_prefix}'.`);
     super();
