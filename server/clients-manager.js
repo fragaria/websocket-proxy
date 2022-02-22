@@ -29,7 +29,7 @@ class ClientsManager extends Object {
     info(`Authenticating request ${request} on ${request.url}.`);
     const match = request.url.match(new RegExp(`^${this.path_prefix}/(?<client_key>.*)$`));
     if (! match) return callback(new Error("Unknown url."));
-    if (this.clientFromId(match.groups.client_key)) return callback(new BadRequest("The key is already used by another client."));
+    if (this.clientFromId(checksum(match.groups.client_key))) return callback(new BadRequest("The key is already used by another client."));
     const clientKey = match.groups.client_key;
     if (this.authenticator) {
       this.authenticator(clientKey, request, socket)
