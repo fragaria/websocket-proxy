@@ -179,6 +179,13 @@ class Channel extends Object {
     this.destructor();
   }
 
+  on_error(error) {
+    console.log(error);
+    this._send('error', error);
+    this.on_end();
+    this.destructor();
+  }
+
   onHttpError(error) {
     console.log(error);
     this._send('error', error);
@@ -208,29 +215,27 @@ class PingPongGamer extends Object {
     super();
     this.pingInterval = config.keepAlivePingInterval * 1000;
     this.ws = ws;
-    this.gotPong = true;
+    this.gotMessage = true;
     this.timers = setInterval(() => {this.ping();}, this.pingInterval);
     debug('Starting ping-pong.');
   }
 
   onMessage(message) {
-    if (message.channel == 'ping-pong') {
-      if (message.event == 'pong') {
-        debug('Pong');
-        this.gotPong = true;
-      } else if (message.event == 'ping') {
-        this.ws.send(message.channel, 'pong');
-      }
+    // record that server was life (even for non-pong messages)
+    debug('Pong');
+    this.gotMessage = true;
+    if (message.event == 'ping') {
+      this.ws.send(message.channel, 'pong');
     }
   }
 
   ping() {
-    if (!this.gotPong) {
+    if (!this.gotMessage) {
       throw Error("Did not received pong after last ping.");
     }
     debug('Ping');
     this.ws.send('ping-pong', 'ping');
-    this.gotPong = false;
+    this.gotMessage = false;
   }
 
 }
