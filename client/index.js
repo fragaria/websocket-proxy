@@ -2,7 +2,8 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 const WebSockProxyClient = require('./client').WebSockProxyClient,
       config = require('../config'),
-      { info, error } = require('../lib/logger');
+      { info, error } = require('../lib/logger'),
+      Sentry = require('@sentry/node');
 
 
 function usage() {
@@ -52,6 +53,18 @@ function Client(key, forwardTo) {
 module.exports = Client;
 
 if (require.main == module) {
+
+  // configure sentry
+  if (config.sentry && config.sentry.dsn) {
+    Sentry.init({
+      dsn: config.sentry.dsn,
+      environment: config.sentry.environment,
+
+      // We recommend adjusting this value in production, or using tracesSampler
+      // for finer control
+      tracesSampleRate: 1.0,
+    });
+  }
 
   const clientKey = process.argv[2] ? process.argv[2] : config.client.key;
   const serverUrl =  process.argv[3] ? process.argv[3] : config.client.serverUrl;

@@ -8,6 +8,7 @@ const setupWebsocketServer = require('./server');
 const Api = require('./api');
 const ClientsManager = require('./clients-manager');
 const { getAuthenticator } = require('./api-authenticator');
+const Sentry = require('@sentry/node');
 
 /**
  * USAGE:
@@ -75,6 +76,19 @@ module.exports = Server;
 
 if (require.main == module) {
 
+  // configure sentry
+  if (config.sentry.dsn) {
+    Sentry.init({
+      dsn: config.sentry.dsn,
+      environment: config.sentry.environment,
+
+      // We recommend adjusting this value in production, or using tracesSampler
+      // for finer control
+      tracesSampleRate: 1.0,
+    });
+  }
+
+
   let server_host, server_port;
   if (process.argc > 1) {
     [server_host, server_port] = process.argv[2].split(':', 2);
@@ -86,10 +100,10 @@ if (require.main == module) {
     [server_host, server_port] = [config.server.host, config.server.port];
   }
 
-
   debug(`
     config: ${server_host}:${server_port}
   `);
+
   new Server({
     keyServerUrl: config.server.keyServerUrl,
     keyServerIgoreForHostnames: config.server.keyServerIgoreForHostnames}

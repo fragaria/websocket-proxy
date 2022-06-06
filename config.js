@@ -31,6 +31,10 @@ let CONFIG = {
   logVerbosity: val('VERBOSITY', 3),
   requestTimeout: val('REQUEST_TIMEOUT', 30000),
   keepAlivePingInterval: val('KEEP_ALIVE_PING_INTERVAL', 60),
+  sentry: {
+    dsn: val('SENTRY_DSN', undefined),
+    environment: val('SENTRY_ENV', undefined),
+  },
 }
 
 if (fs.existsSync(path.join(__dirname, 'config-local.js')) || fs.existsSync(path.join(__dirname, 'config-local/index.js'))) {
