@@ -4,7 +4,8 @@
 const WebSocket = require('ws'),
       config = require('../config'),
       { unpackMessage } = require('./ws-message'),
-      { debug, DEBUG } = require('../lib/logger');
+      { debug, DEBUG } = require('../lib/logger'),
+      Sentry = require('@sentry/node');
 
 /*
  * @clientsManager ... function (request, callback) which calls callback(err, client).
@@ -40,7 +41,16 @@ function setupWebsocketServer(httpServer, clientsManager) {
           debug(`Client ${client.id} closed connection.`);
           clientsManager.onClose(ws, client);
         });
-        ws.on('message', (message)=>clientsManager.onMessage(unpackMessage(message), ws, client));
+        ws.on('message', (message)=>{
+          try {
+            message = unpackMessage(message);
+          } catch(error) { // unparsable message
+            Sentry.captureException(error);
+            client.send({channel: 'error', event: 'error.', data: 'Unparsable message.'});
+            return;
+          }
+          clientsManager.onMessage(message, ws, client);
+        });
         clientsManager.onConnected(ws, client);
         ws.client_object = client;
         webSocketServer.emit('connection', ws, request, client);

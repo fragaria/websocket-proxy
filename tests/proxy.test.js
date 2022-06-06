@@ -85,6 +85,13 @@ test('request abort', t => {
   
 });
 
+test('invalid message', t => {
+  // send an invalid message
+  t.context.client.wsProxy.ws_.send('ahoj');
+  t.context.client.wsProxy.ws.send('', '', '');
+  t.true(true); // invalid message did not creashed server
+});
+
 test.before(t => {
   const Server = require('../server'),
         Client = require('../client'),
