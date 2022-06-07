@@ -264,6 +264,7 @@ class WebSockProxyClient extends Object {
     this.ws_ = new this.__web_socket(`${wsServer}${websocketPath}/${this.key}`);
     /** @type WebSocket */
     const ws = new Messanger(this.ws_);
+    this.ws = ws;
 
     ws.on('open', () => {
       const requestForwarder = new RequestForwarder(ws, forwardTo);
