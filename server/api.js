@@ -136,7 +136,7 @@ class Api extends Object {
    * Forwards API request to and from the device.
    */
   _request_handler(req, res) {
-    info(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
+    debug(`<    ${req.method} ${req.url} ... matching against ${this._path_prefix}`);
     let path_info = this._parse_request_path(req);
     if (!path_info || !path_info.id || ! path_info.resource) {
       throw new NotFound(`Invalid url ${req.url}.`);

@@ -31,10 +31,14 @@ function setupWebsocketServer(httpServer, clientsManager) {
     debug("Upgrading protocol to websocket.");
     clientsManager.authenticate(request, socket, (err, client) => {
       if (err || !client) {
+        let scope = new Sentry.Scope();
+        scope.setExtra('url', request.url);
         if (err instanceof HttpError) {
+          Sentry.captureMessage(`Authentication failed with "${err}": ${err.description}`, ()=>scope);
           warning(`Authentication failed with "${err}": ${err.description}`);
           socket.end(`HTTP/1.1 ${err.code} ${err.message}\r\nContent-Type: text/plain\r\n\r\n${err.description}\n\n`, 'ascii');
         } else {
+          Sentry.captureException(err, ()=>scope);
           error(`Authentication failed on fatal error ${err}.`);
           socket.end('HTTP/1.1 500 Internal Server Error\r\n\r\n', 'ascii');
         }
