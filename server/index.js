@@ -55,6 +55,7 @@ function Server({keyServerUrl=null, keyServerIgoreForHostnames=null}={}) {
       info('Connection closed.');
     })
     .on('error', (err) => {
+      Sentry.captureException(err);
       error(`Error ${err} occured.`);
     });
 
