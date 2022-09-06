@@ -34,8 +34,9 @@ function setupWebsocketServer(httpServer, clientsManager) {
         let scope = new Sentry.Scope();
         scope.setExtra('url', request.url);
         if (err instanceof HttpError) {
-          Sentry.captureMessage(`Authentication failed with "${err}": ${err.description}`, ()=>scope);
-          warning(`Authentication failed with "${err}": ${err.description}`);
+          // TODO FIX: disable temporarilly Sentry loging for now, as there is too many errors now
+          // Sentry.captureMessage(`Authentication failed with "${err}": ${err.description}`, ()=>scope);
+          warning(`Authentication failed with "${err}": ${err.description} (URL: ${request.url})`);
           socket.end(`HTTP/1.1 ${err.code} ${err.message}\r\nContent-Type: text/plain\r\n\r\n${err.description}\n\n`, 'ascii');
         } else {
           Sentry.captureException(err, ()=>scope);
