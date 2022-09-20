@@ -5,7 +5,7 @@ const WebSocket = require('ws'),
       config = require('../config'),
       { HttpError }    = require('./HttpError'),
       { unpackMessage } = require('./ws-message'),
-      { debug, warning, error, DEBUG } = require('../lib/logger'),
+      { debug, info, warning, error, DEBUG } = require('../lib/logger'),
       Sentry = require('@sentry/node');
 
 /*
@@ -15,14 +15,15 @@ const WebSocket = require('ws'),
 function setupWebsocketServer(httpServer, clientsManager) {
   const webSocketServer = new WebSocket.Server({ noServer: true });
 
-  if (config.logVerbosity >= DEBUG) {
-    webSocketServer.on('connection', function connection(/*ws, request, client*/) {
+  webSocketServer.on('connection', function connection(/*ws, request, client*/) {
+    if (config.logVerbosity >= DEBUG) {
       debug('Clients:')
-      webSocketServer.clients.forEach(function each(client) {
-        debug(`- ${client.id}`);
+      webSocketServer.clients.forEach(function each(clientWs) {
+        debug(`- ${clientWs.client}`);
       });
-    });
-  }
+    }
+    info(`STAT: ${webSocketServer.clients.size} devices connected`);
+  });
 
   /**
    * Called when client requests upgrade to WebSocket
