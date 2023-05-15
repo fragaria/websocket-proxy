@@ -23,6 +23,8 @@ let CONFIG = {
     key: val('KEY', 'client-1'),
     serverUrl: val('SERVER_URL', 'ws://localhost:8090'),
     forwardTo: val('FORWARD_TO', 'http://prusa3d.local'),
+    // ports to which the request can be forwarded
+    allowedForwardToPorts: val('FORWARD_TO_PORTS', '80, 443').split(',').map(s=>s.trim()),
   },
   /*
      VERBOSE_DEBUG = 10,
