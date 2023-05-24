@@ -137,7 +137,7 @@ class Channel extends Object {
     // TODO: Port setup should be packed in message on WS server part
     if (ireq.headers['x-karmen-port']) {
       let port = ireq.headers['x-karmen-port'].trim();
-      if (port) {
+      if (port && port != 'None') {  // FIXME: hack - old version of Karmen server sends 'None' as port
         if (config.client.allowedForwardToPorts.indexOf(port) < 0) {
           throw new InvalidRequestError(`Port ${port} is not allowed on the device.`);
         }
