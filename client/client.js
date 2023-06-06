@@ -14,6 +14,8 @@ const path = require('path'),
       info    = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'}),
       warning = getLogger.info({prefix: '\u001b[35mC:i', postfix: '\u001b[0m\n'});
 
+class InvalidRequestError extends Error { }  // Received an invalid request from proxy server side
+
 class RequestForwarder extends Object {
 
   constructor(ws, forwardBaseUri) {
@@ -112,9 +114,17 @@ class Channel extends Object {
     const event = message.event;
     const eventHandler = `on_${event}`;
     if (this[eventHandler]) {
-      this[eventHandler](message);
+      try {
+        this[eventHandler](message);
+      } catch(error) {
+        if (error instanceof InvalidRequestError) {
+          this.on_error(error.message);
+        } else {
+          throw error;
+        }
+      }
     } else {
-      throw new Error(`Invalid event ${event} received for url ${this.url}, channel ${this.id}.`);
+      this.on_error(`Invalid event ${event} received for url ${this.url}, channel ${this.id}.`);
     }
     return this;
   }
@@ -124,6 +134,17 @@ class Channel extends Object {
     debug(`< ${this.id}:  ${ireq.method} ${ireq.url}`);
     const forwardToUrl = new URL(this.forwardTo); // clone the original uri
     forwardToUrl.href = path.posix.join(forwardToUrl.href, ireq.url);
+    // TODO: Port setup should be packed in message on WS server part
+    if (ireq.headers['x-karmen-port']) {
+      let port = ireq.headers['x-karmen-port'].trim();
+      if (port && port != 'None') {  // FIXME: hack - old version of Karmen server sends 'None' as port
+        if (config.client.allowedForwardToPorts.indexOf(port) < 0) {
+          throw new InvalidRequestError(`Port ${port} is not allowed on the device.`);
+        }
+        forwardToUrl.port = port;
+        delete ireq.headers['x-karmen-port'];
+      }
+    }
     const requestParameters = {
       method: ireq.method,
       headers: ireq.headers,

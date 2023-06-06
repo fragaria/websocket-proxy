@@ -62,6 +62,35 @@ test('send request', t => {
   t.is(unpackMessage(ws.__lastMessage).event, 'end');
 });
 
+
+/**
+ */
+test('forward to a specific port', t => {
+  const port = 443;
+  const httpRequest = { method: 'get', url: '/', headers: {'x-karmen-port': `${port}`}},
+        context = setup(),
+        { ws, reqMock } = context;
+
+  ws.emit('message', packMessage({ event: 'headers', channel: '/req/123',
+                                   data: httpRequest,
+  }));
+
+  const reqParams = reqMock.__lastCall('__makeRequest').arguments[0];
+  t.is(reqParams.href, context.forwardTo.replace('localhost', `localhost:${port}`) + httpRequest.url);
+  t.is(reqParams.headers['x-karmen-port'], undefined);
+});
+
+test('try to acces port which is not allowed', t => {
+  const httpRequest = { method: 'get', url: '/', headers: {'x-karmen-port': '1234'}},
+        { ws } = setup();
+
+  t.throws(
+    ()=>ws.emit('message', packMessage({ event: 'headers', channel: '/req/123', data: httpRequest})),
+    {message: /Port 1234 is not allowed.*/}
+  );
+
+});
+
 test('invalid message event id throws an error', (t) => {
   const { ws } = setup();
   t.throws(
