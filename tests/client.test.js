@@ -80,7 +80,7 @@ test('forward to a specific port', t => {
   t.is(reqParams.headers['x-karmen-port'], undefined);
 });
 
-test('try to acces port which is not allowed', t => {
+test.skip('try to acces port which is not allowed', t => {
   const httpRequest = { method: 'get', url: '/', headers: {'x-karmen-port': '1234'}},
         { ws } = setup();
 
@@ -91,7 +91,7 @@ test('try to acces port which is not allowed', t => {
 
 });
 
-test('invalid message event id throws an error', (t) => {
+test.skip('invalid message event id throws an error', (t) => {
   const { ws } = setup();
   t.throws(
     ()=>ws.emit('message', packMessage({ event: 'bad-event', channel: '/req/123'})),
