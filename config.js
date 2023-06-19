@@ -18,6 +18,7 @@ let CONFIG = {
     // number of seconds of client inactivity after which the connection is
     // considered dead
     clientInactiveAfter: val('CLIENT_INACTIVE_AFTER_SECS', 90),
+    clientListDumpFile: val('SERVER_CLIENT_LIST_DUMP_FILE', undefined)
   },
   client: {
     key: val('KEY', 'client-1'),
