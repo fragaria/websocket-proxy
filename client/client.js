@@ -94,8 +94,11 @@ class Channel extends Object {
     this.ws = handler._ws;
     this.destructorCallack = destructorCallack;
 
-
     this.timeout = handler.maxChannelLivespan;
+
+    this._timeoutTimer = new Timer(() => {
+      this.request.emit('error', 'The request timed out.');
+    }, this.timeout);
   }
 
   _send(event, data) {
@@ -130,6 +133,7 @@ class Channel extends Object {
   }
 
   on_headers(message) {
+    this._timeoutTimer.reset()
     const ireq = message.data;
     debug(`< ${this.id}:  ${ireq.method} ${ireq.url}`);
     const forwardToUrl = new URL(this.forwardTo); // clone the original uri
@@ -139,6 +143,7 @@ class Channel extends Object {
       let port = ireq.headers['x-karmen-port'].trim();
       if (port && port != 'None') {  // FIXME: hack - old version of Karmen server sends 'None' as port
         if (config.client.allowedForwardToPorts.indexOf(port) < 0) {
+          debug(`! ${this.id}:  ${ireq.method} ${ireq.url} - prohibited port`);
           throw new InvalidRequestError(`Port ${port} is not allowed on the device.`);
         }
         forwardToUrl.port = port;
@@ -155,9 +160,6 @@ class Channel extends Object {
     }
     info(` > ${this.id}:  ${ireq.method} ${ireq.url} -> ${forwardToUrl.toString()}`);
     this.url = forwardToUrl.toString();
-    this._timeoutTimer = new Timer(() => {
-      this.request.emit('error', 'The request timed out.');
-    }, this.timeout);
     this.request = this.http.request(this.url, requestParameters, (res) => {
       // res.setEncoding('utf8');
       debug(`<:  ${this.id}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${forwardToUrl.pathname}`);
