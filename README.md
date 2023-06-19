@@ -41,9 +41,27 @@ Server accepts these environamental variables:
   immediatelly disconnected.
   If KEY_SERVER_URL is undefined, client with any key can connect (default: undefined).
 
-## Configuration file
+## Configuration environment variables
 
-TODO: add info about config.js and it's values
+Client and Server can be configured through environment variables. Forexample
+run `KEY=1234 npm run client` to start client with client key 1234. Here is a
+list of supported configuration variables.
+
+### Server
+
+- ADDRESS - the address to listen on (default: localhost)
+- PORT - port to listen on (default: 8090)
+- KEY_SERVER_URL - key-mster API url for authentication or empty to ignore authentication (default: none)
+- KEY_SERVER_IGNORE_FOR_HOSTNAMES - hostnames to be ignored for key server (default: none)
+- CLIENT_INACTIVE_AFTER_SECS - number of seconds of client inactivity after which the connection is considered dead (default: 90),
+- SERVER_CLIENT_LIST_DUMP_FILE - filepath where to keep list of connected clients; If empty, no list is being written (default: none)
+
+### Client
+
+- KEY - client key (default: client-1
+- SERVER_URL - url of Websocket Proxy server (default: ws://localhost:8090),
+- FORWARD_TO - url where to forward all communication to (default: http://prusa3d.local),
+- FORWARD_TO_PORTS - comma separated list of ports where to forward communication to (default: 80,443)
 
 ## Connecting a client to the server
 

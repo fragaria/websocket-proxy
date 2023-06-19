@@ -1,12 +1,13 @@
 //-- vim: ft=javascript tabstop=2 softtabstop=2 expandtab shiftwidth=2
 'use strict';
 
-const EventEmitter                  = require('events'),
+const fs                            = require('fs'),
+      EventEmitter                  = require('events'),
       checksum                      = require('../lib').checksum,
       config                        = require('../config'),
       {BadRequest, Unauthorized}    = require('./HttpError'),
       { packMessage }               = require('./ws-message'),
-      { debug, info }               = require('../lib/logger');
+      { debug, info, error }        = require('../lib/logger');
 
 const CLIENT_INACTIVE_AFTER = config.server.clientInactiveAfter;
 
@@ -15,6 +16,7 @@ class ClientsManager extends Object {
     super();
     this.events = new EventEmitter();
     this._clients_by_id = {};
+    this._dumpClients();  // to fail fast when output file is unaccessible
     this.path_prefix = path_prefix;
     this.messageSubscribers = [];
     this.authenticator = authenticate;
@@ -86,6 +88,20 @@ class ClientsManager extends Object {
 
   }
 
+  _dumpClients() {
+    if (config.server.clientListDumpFile) {
+      fs.writeFile(
+        config.server.clientListDumpFile,
+        Object.entries(this._clients_by_id).map(k => k[0]).join('\n'),
+        err => {
+          if (err) {
+            error('Could not write list of clients (check SERVER_CLIENT_LIST_DUMP_FILE', err);
+            throw(err);
+          }
+        }
+      );
+    }
+  }
 
   onConnected (ws, client) {
     client.webSocket = ws;
@@ -94,12 +110,14 @@ class ClientsManager extends Object {
     ws.client = client;
     client.emit('connected', client)
     this.events.emit('connected', client);
+    this._dumpClients();
   }
 
   onClose (ws, client) {
     delete this._clients_by_id[client.id];
     client.emit('close', client);
     this.events.emit('close', client);
+    this._dumpClients();
   }
 
   clientFromId (id) {
