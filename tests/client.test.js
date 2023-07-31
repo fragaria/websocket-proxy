@@ -80,14 +80,13 @@ test('forward to a specific port', t => {
   t.is(reqParams.headers['x-karmen-port'], undefined);
 });
 
-test.skip('try to acces port which is not allowed', t => {
+test('try to acces port which is not allowed', t => {
   const httpRequest = { method: 'get', url: '/', headers: {'x-karmen-port': '1234'}},
-        { ws } = setup();
+        { ws, reqMock } = setup();
 
-  t.throws(
-    ()=>ws.emit('message', packMessage({ event: 'headers', channel: '/req/123', data: httpRequest})),
-    {message: /Port 1234 is not allowed.*/}
-  );
+    ws.emit('message', packMessage({ event: 'headers', channel: '/req/123', data: httpRequest}))
+    // {message: /Port 1234 is not allowed.*/}
+  t.is(reqMock.__lastCall('__makeRequest', undefined));
 
 });
 
