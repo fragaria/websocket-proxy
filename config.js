@@ -36,6 +36,8 @@ let CONFIG = {
   */
   logVerbosity: val('VERBOSITY', 5),
   requestTimeout: val('REQUEST_TIMEOUT', 30000),
+  // closes connection when the other party does not respond to ping request
+  // after this number of seconds
   keepAlivePingInterval: val('KEEP_ALIVE_PING_INTERVAL', 60),
   sentry: {
     dsn: val('SENTRY_DSN', undefined),

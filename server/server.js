@@ -5,8 +5,9 @@ const WebSocket = require('ws'),
       config = require('../config'),
       { HttpError }    = require('./HttpError'),
       { unpackMessage } = require('./ws-message'),
-      { debug, info, warning, error, DEBUG } = require('../lib/logger'),
-      Sentry = require('@sentry/node');
+      { getLogger, info, warning, error, DEBUG } = require('../lib/logger'),
+      Sentry = require('@sentry/node'),
+      debug   = getLogger.debug({prefix: '\u001b[34mDEBUG', postfix: '\u001b[0m\n'});
 
 /*
  * @clientsManager ... function (request, callback) which calls callback(err, client).
@@ -49,12 +50,21 @@ function setupWebsocketServer(httpServer, clientsManager) {
         return;
       }
 
+
+      /**
+       * @socket {net.socket} socket
+       */
       webSocketServer.handleUpgrade(request, socket, head, function done(ws) {
+
+        watchForDeadConnection(ws);
+
         ws.on('close', function onClose() {
           debug(`Client ${client.id} closed connection.`);
           clientsManager.onClose(ws, client);
+          info(`STAT: ${webSocketServer.clients.size} devices connected`);
         });
         ws.on('message', (message)=>{
+          debug(`Message from ${client.id}.`);
           try {
             message = unpackMessage(message);
           } catch(error) { // unparsable message
@@ -71,6 +81,29 @@ function setupWebsocketServer(httpServer, clientsManager) {
     });
   });
   return webSocketServer;
+}
+
+/**
+ * Uses WebSocket ping dataframe to verify the connection is alive and closes
+ * dead connection after config.keepAlivePingInterval seconds.
+ *
+ * @param {WebSocket} [ws] initialized websocket
+ */
+function watchForDeadConnection(ws) {
+  let pongReceived = true;
+  let pingTimer = setInterval(() => {
+    debug(`Sending ping to ${ws.client.id}`);
+    ws.ping();
+    if (!pongReceived) {
+      info(`Closing connection to ${ws.client.id} due to dead connection (no pong received in ${config.keepAlivePingInterval}s).`);
+      ws.close();
+      clearInterval(pingTimer);
+    }
+    pongReceived = false;
+  }, config.keepAlivePingInterval * 1000);
+  ws.on('close', () => clearInterval(pingTimer));
+  ws.on('pong', () => {pongReceived = true; debug(`Received pong from ${ws.client.id}`)});
+
 }
 
 module.exports = setupWebsocketServer;
