@@ -48,7 +48,7 @@ class ClientsManager extends Object {
 
 
   authenticate(request, socket, callback) {
-    info(`Authenticating request to ${request.url}.`);
+    info(`Authenticating request to ${request.url} from ${request.ip}.`);
 
     const auth_callback = () => {
       if (this.authenticator) {

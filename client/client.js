@@ -8,11 +8,12 @@ const path = require('path'),
       WebSocket = require('ws'),
       { Messanger } = require('../server/ws-message'),
       { getLogger } = require('../lib/logger'),
+      { getIPAddress } = require('../lib/utils'),
       config = require('../config'),
 
       debug   = getLogger.debug({prefix: '\u001b[34mC:d', postfix: '\u001b[0m\n'}),
       info    = getLogger.info({prefix: '\u001b[34mC:i', postfix: '\u001b[0m\n'}),
-      warning = getLogger.info({prefix: '\u001b[35mC:i', postfix: '\u001b[0m\n'});
+      warning = getLogger.warning({prefix: '\u001b[35mC:i', postfix: '\u001b[0m\n'});
 
 class InvalidRequestError extends Error { }  // Received an invalid request from proxy server side
 
@@ -97,7 +98,9 @@ class Channel extends Object {
     this.timeout = handler.maxChannelLivespan;
 
     this._timeoutTimer = new Timer(() => {
-      this.request.emit('error', 'The request timed out.');
+      if (this.request && this.request.emit) {
+        this.request.emit('error', 'The request timed out.');
+      }
     }, this.timeout);
   }
 
@@ -132,11 +135,39 @@ class Channel extends Object {
     return this;
   }
 
+  /**
+   * Internal (not forwarded api endpoint on /$ip
+   */
+  internal_request_ip(ireq, forwardToUrl) {
+    this._send('headers', {
+      statusCode: '200',
+      statusMessage: 'OK',
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
+    });
+    this.url = ireq.url;
+    this.request = {end: ()=>{
+
+      let ipAddress;
+      if (['localhost', '127.0.0.1',].indexOf(forwardToUrl.hostname) >= 0) {
+        ipAddress = getIPAddress();
+      } else {
+        ipAddress = forwardToUrl.hostname;
+      }
+      this.onHttpData(JSON.stringify({
+        'ipAddress': ipAddress,
+      }));
+      this.onHttpEnd();
+    }};
+  }
+
   on_headers(message) {
     this._timeoutTimer.reset()
     const ireq = message.data;
     debug(`< ${this.id}:  ${ireq.method} ${ireq.url}`);
     const forwardToUrl = new URL(this.forwardTo); // clone the original uri
+    if (ireq.url == '/$ip') {
+      return this.internal_request_ip(ireq, forwardToUrl);
+    }
     forwardToUrl.href = path.posix.join(forwardToUrl.href, ireq.url);
     // TODO: Port setup should be packed in message on WS server part
     if (ireq.headers['x-karmen-port']) {
@@ -245,7 +276,6 @@ class PingPongGamer extends Object {
 
   onMessage(message) {
     // record that server was life (even for non-pong messages)
-    debug('Pong');
     this.gotMessage = true;
     if (message.event == 'ping') {
       this.ws.send(message.channel, 'pong');
