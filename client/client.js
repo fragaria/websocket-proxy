@@ -6,9 +6,11 @@ const { setInterval } = require('timers');
 let IS_DOWNLOAD_UPLOAD_RUNNING = false;
 
 const path = require('path'),
+      os = require('os'),
       http = require('http'),
       https = require('https'),
       fs = require('fs'),
+      FormData = require('form-data'),
       WebSocket = require('ws'),
       { Messanger } = require('../server/ws-message'),
       { getLogger } = require('../lib/logger'),
@@ -182,12 +184,14 @@ class Channel extends Object {
 
       this.request = {
         write: (data) => {
-          const tempFilePath = '/tmp/aaa.gcode';
-          const jsonData = JSON.parse(data);
+          // parse received formdata to object/json
+          const jsonData = Object.fromEntries(new URLSearchParams(data).entries());
+
+          const tempFilePath = path.join(os.tmpdir(), jsonData.upload_file_name);
 
           const adapter = new URL(jsonData.download_url).protocol == 'https:' ? https : http;
 
-          const download_request = adapter.get(jsonData.download_url, (response) => {
+          adapter.get(jsonData.download_url, (response) => {
             if (response.statusCode !== 200) {
               this._send('headers', {
                 statusCode: '400',
@@ -202,60 +206,43 @@ class Channel extends Object {
               tmpFile.on('finish', () => {
                 tmpFile.close();
 
-                fs.readFile(tempFilePath, (err, fileData) => {
-                  if (err) {
-                    throw err;
-                  }
+                const form = new FormData();
+                form.append('file', fs.createReadStream(tempFilePath));
 
-                  // Boundary for separating parts in the multipart request (random string)
-                  const boundary = '----WebKitFormBoundaryOp7MSKKLAA4YWxkTrZu0gW';
+                const options = {
+                  method: 'POST',
+                  headers: form.getHeaders(),
+                };
 
-                  // Construct the multipart form-data body
-                  const postData =
-                    `--${boundary}\r\n` +
-                    `Content-Disposition: form-data; name="print"\r\n\r\n` +
-                    `${jsonData.print}\r\n` +
-                    `--${boundary}\r\n` +
-                    `Content-Disposition: form-data; name="file"; filename="${path.basename(jsonData.upload_file_name)}"\r\n` +
-                    `Content-Type: application/octet-stream\r\n\r\n` +
-                    fileData +
-                    `\r\n--${boundary}--`;
+                const uploadUrl = new URL(jsonData.upload_url, forwardToUrl.toString()).toString();
 
-                  // Set up the HTTP request options
-                  const requestParameters = {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': `multipart/form-data; boundary=${boundary}`,
-                      'Content-Length': Buffer.byteLength(postData),
-                    },
-                    path: jsonData.upload_url
-                  };
-
-                  // Make the upload HTTP request
-                  const req = http.request(forwardToUrl.toString(), requestParameters, (res) => {
+                const req = http.request(uploadUrl, options, (res) => {
+                  if (res.statusCode != 200 && res.statusCode != 201) {
+                    this._send('headers', {
+                      statusCode: '400',
+                      statusMessage: `Error uploading file. Server responded with unexpected HTTP status: ${res.statusCode} ${res.statusMessage}.`
+                    });
+                    this.onHttpEnd();
+                    IS_DOWNLOAD_UPLOAD_RUNNING = false;
+                  } else {
                     this._send('headers', {
                       statusCode: res.statusCode,
                       statusMessage: res.statusMessage,
                       headers: res.headers,
                     });
-
                     res.on('data', (chunk) => {
-                      this.onHttpData(chunk)
-                    });
-                    res.on('error', (err) => {
+                      this.onHttpData(chunk);
                     });
                     res.on('end', () => {
                       IS_DOWNLOAD_UPLOAD_RUNNING = false;
                       this.onHttpEnd();
                     });
-                  });
-                  req.on('error', (err) => {
-                    console.log(err);
-                    this.onHttpError(err);
-                  });
-                  req.write(postData);
-                  req.end();
+                  }
                 });
+                req.on('error', (err) => {
+                  throw err;
+                });
+                form.pipe(req);
               });
             }
           });
