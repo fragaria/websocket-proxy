@@ -3,8 +3,12 @@
 
 const { setInterval } = require('timers');
 
+let IS_DOWNLOAD_UPLOAD_RUNNING = false;
+
 const path = require('path'),
       http = require('http'),
+      https = require('https'),
+      fs = require('fs'),
       WebSocket = require('ws'),
       { Messanger } = require('../server/ws-message'),
       { getLogger } = require('../lib/logger'),
@@ -160,40 +164,134 @@ class Channel extends Object {
     }};
   }
 
-  on_headers(message) {
-    this._timeoutTimer.reset()
-    const ireq = message.data;
-    debug(`< ${this.id}:  ${ireq.method} ${ireq.url}`);
-    const forwardToUrl = new URL(this.forwardTo); // clone the original uri
-    if (ireq.url == '/$ip') {
-      return this.internal_request_ip(ireq, forwardToUrl);
+  internal_request_download_upload_file(forwardToUrl) {
+    if (IS_DOWNLOAD_UPLOAD_RUNNING) {
+      this.request = {
+        write: () => {},
+        end: () => {
+          this._send('headers', {
+            statusCode: '503',
+            statusMessage: `Previous request is still processing.`
+          });
+          this.onHttpEnd();
+        }
+      };
+    } else {
+
+      IS_DOWNLOAD_UPLOAD_RUNNING = true;
+
+      this.request = {
+        write: (data) => {
+          const tempFilePath = '/tmp/aaa.gcode';
+          const jsonData = JSON.parse(data);
+
+          const adapter = new URL(jsonData.download_url).protocol == 'https:' ? https : http;
+
+          const download_request = adapter.get(jsonData.download_url, (response) => {
+            if (response.statusCode !== 200) {
+              this._send('headers', {
+                statusCode: '400',
+                statusMessage: `Error downloading remote file. Remote server responded with unexpected HTTP status: ${response.statusCode} ${response.statusMessage}.`
+              });
+              this.onHttpEnd();
+              IS_DOWNLOAD_UPLOAD_RUNNING = false;
+            } else {
+              const tmpFile = fs.createWriteStream(tempFilePath);
+              response.pipe(tmpFile);
+
+              tmpFile.on('finish', () => {
+                tmpFile.close();
+
+                fs.readFile(tempFilePath, (err, fileData) => {
+                  if (err) {
+                    throw err;
+                  }
+
+                  // Boundary for separating parts in the multipart request (random string)
+                  const boundary = '----WebKitFormBoundaryOp7MSKKLAA4YWxkTrZu0gW';
+
+                  // Construct the multipart form-data body
+                  const postData =
+                    `--${boundary}\r\n` +
+                    `Content-Disposition: form-data; name="print"\r\n\r\n` +
+                    `${jsonData.print}\r\n` +
+                    `--${boundary}\r\n` +
+                    `Content-Disposition: form-data; name="file"; filename="${path.basename(jsonData.upload_file_name)}"\r\n` +
+                    `Content-Type: application/octet-stream\r\n\r\n` +
+                    fileData +
+                    `\r\n--${boundary}--`;
+
+                  // Set up the HTTP request options
+                  const requestParameters = {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                      'Content-Length': Buffer.byteLength(postData),
+                    },
+                    path: jsonData.upload_url
+                  };
+
+                  // Make the upload HTTP request
+                  const req = http.request(forwardToUrl.toString(), requestParameters, (res) => {
+                    this._send('headers', {
+                      statusCode: res.statusCode,
+                      statusMessage: res.statusMessage,
+                      headers: res.headers,
+                    });
+
+                    res.on('data', (chunk) => {
+                      this.onHttpData(chunk)
+                    });
+                    res.on('error', (err) => {
+                    });
+                    res.on('end', () => {
+                      IS_DOWNLOAD_UPLOAD_RUNNING = false;
+                      this.onHttpEnd();
+                    });
+                  });
+                  req.on('error', (err) => {
+                    console.log(err);
+                    this.onHttpError(err);
+                  });
+                  req.write(postData);
+                  req.end();
+                });
+              });
+            }
+          });
+        },
+        end: () => {}
+      };
     }
-    forwardToUrl.href = path.posix.join(forwardToUrl.href, ireq.url);
+  }
+
+  standardForwardedRequest(inReq, forwardToUrl) {
+    forwardToUrl.href = path.posix.join(forwardToUrl.href, inReq.url);
     // TODO: Port setup should be packed in message on WS server part
-    if (ireq.headers['x-karmen-port']) {
-      let port = ireq.headers['x-karmen-port'].trim();
+    if (inReq.headers['x-karmen-port']) {
+      let port = inReq.headers['x-karmen-port'].trim();
       if (port && port != 'None') {  // FIXME: hack - old version of Karmen server sends 'None' as port
         if (config.client.allowedForwardToPorts.indexOf(port) < 0) {
-          debug(`! ${this.id}:  ${ireq.method} ${ireq.url} - prohibited port`);
+          debug(`! ${this.id}:  ${inReq.method} ${inReq.url} - prohibited port`);
           throw new InvalidRequestError(`Port ${port} is not allowed on the device.`);
         }
         forwardToUrl.port = port;
-        delete ireq.headers['x-karmen-port'];
+        delete inReq.headers['x-karmen-port'];
       }
     }
     const requestParameters = {
-      method: ireq.method,
-      headers: ireq.headers,
-      search: ireq.search,
+      method: inReq.method,
+      headers: inReq.headers,
+      search: inReq.search,
     }
     if (requestParameters.headers.host) {
       delete requestParameters.headers.host;
     }
-    info(` > ${this.id}:  ${ireq.method} ${ireq.url} -> ${forwardToUrl.toString()}`);
+    info(` > ${this.id}:  ${inReq.method} ${inReq.url} -> ${forwardToUrl.toString()}`);
     this.url = forwardToUrl.toString();
     this.request = this.http.request(this.url, requestParameters, (res) => {
       // res.setEncoding('utf8');
-      debug(`<:  ${this.id}:  ${res.statusCode} ${res.statusMessage} / ${ireq.method} ${forwardToUrl.pathname}`);
+      debug(`<:  ${this.id}:  ${res.statusCode} ${res.statusMessage} / ${inReq.method} ${forwardToUrl.pathname}`);
       this._send('headers', {
         statusCode: res.statusCode,
         statusMessage: res.statusMessage,
@@ -205,6 +303,26 @@ class Channel extends Object {
     });
     this.request.on('error', this.onHttpError.bind(this));
     return this;
+  }
+
+  on_headers(message) {
+    this._timeoutTimer.reset()
+    const incomingRequest = message.data;
+    debug(`< ${this.id}:  ${incomingRequest.method} ${incomingRequest.url}`);
+    const forwardToUrl = new URL(this.forwardTo); // clone the original uri
+
+    // special internal API endpoint to get local IP address of the device
+    if (incomingRequest.url.startsWith('/$ip')) {
+      return this.internal_request_ip(incomingRequest, forwardToUrl);
+
+    // special internal API endpoint to download file from remote and re-post it
+    } else if (incomingRequest.url.startsWith('/$download_upload_file')) {
+      return this.internal_request_download_upload_file(forwardToUrl);
+
+    // any other standard request to be forwarded
+    } else {
+      return this.standardForwardedRequest(incomingRequest, forwardToUrl);
+    }
   }
 
   on_data(message) {
