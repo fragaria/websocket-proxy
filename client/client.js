@@ -209,6 +209,14 @@ class Channel extends Object {
                 const form = new FormData();
                 form.append('file', fs.createReadStream(tempFilePath));
 
+                // add/pass any additional formdata to forwarded formdata;
+                // skip specific data we used for download/upload file that should not be forwarded
+                for (const property in jsonData) {
+                  if (! ['download_url', 'upload_url', 'upload_file_name'].includes(property)) {
+                    form.append(property, jsonData[property]);
+                  }
+                }
+
                 const options = {
                   method: 'POST',
                   headers: form.getHeaders(),
