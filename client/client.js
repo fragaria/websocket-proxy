@@ -184,14 +184,16 @@ class Channel extends Object {
 
       this.request = {
         write: (data) => {
-          // parse received formdata to object/json
-          const jsonData = Object.fromEntries(new URLSearchParams(data).entries());
+          let searchParams = new URLSearchParams(data);
+          const upload_file_name = searchParams.get('upload_file_name');
+          const download_url = searchParams.get('download_url');
+          const uploadUrl = new URL(searchParams.get('upload_url'), forwardToUrl.toString()).toString();
 
-          const tempFilePath = path.join(os.tmpdir(), jsonData.upload_file_name);
+          const tempFilePath = path.join(os.tmpdir(), upload_file_name);
 
-          const adapter = new URL(jsonData.download_url).protocol == 'https:' ? https : http;
+          const adapter = new URL(download_url).protocol == 'https:' ? https : http;
 
-          adapter.get(jsonData.download_url, (response) => {
+          adapter.get(download_url, (response) => {
             if (response.statusCode !== 200) {
               this._send('headers', {
                 statusCode: '400',
@@ -209,11 +211,10 @@ class Channel extends Object {
                 const form = new FormData();
                 form.append('file', fs.createReadStream(tempFilePath));
 
-                // add/pass any additional formdata to forwarded formdata;
-                // skip specific data we used for download/upload file that should not be forwarded
-                for (const property in jsonData) {
-                  if (! ['download_url', 'upload_url', 'upload_file_name'].includes(property)) {
-                    form.append(property, jsonData[property]);
+                // add/forward any additional formdata (don't include data we used for download/upload)
+                for (const item of searchParams.keys()) {
+                  if (! ['download_url', 'upload_url', 'upload_file_name'].includes(item)) {
+                    form.append(item, searchParams.get(item));
                   }
                 }
 
@@ -221,8 +222,6 @@ class Channel extends Object {
                   method: 'POST',
                   headers: form.getHeaders(),
                 };
-
-                const uploadUrl = new URL(jsonData.upload_url, forwardToUrl.toString()).toString();
 
                 const req = http.request(uploadUrl, options, (res) => {
                   if (res.statusCode != 200 && res.statusCode != 201) {
