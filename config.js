@@ -26,6 +26,8 @@ let CONFIG = {
     forwardTo: val('FORWARD_TO', 'http://prusa3d.local'),
     // ports to which the request can be forwarded
     allowedForwardToPorts: val('FORWARD_TO_PORTS', '80, 443').split(',').map(s=>s.trim()),
+    // directory for uploaded files
+    uploadDirectory: val('UPLOAD_DIRECTORY', undefined),
   },
   /*
      VERBOSE_DEBUG = 10,

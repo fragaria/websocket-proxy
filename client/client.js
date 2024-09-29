@@ -3,14 +3,14 @@
 
 const { setInterval } = require('timers');
 
-let IS_DOWNLOAD_UPLOAD_RUNNING = false;
+let IS_DOWNLOADING = false;
+let DOWNLOAD_PROGRESS = 0;
+let DOWNLOAD_PROGRESS_PCT = 0;
 
 const path = require('path'),
-      os = require('os'),
       http = require('http'),
       https = require('https'),
       fs = require('fs'),
-      FormData = require('form-data'),
       WebSocket = require('ws'),
       { Messanger } = require('../server/ws-message'),
       { getLogger } = require('../lib/logger'),
@@ -142,6 +142,24 @@ class Channel extends Object {
   }
 
   /**
+   * Send response, that device is busy by downloading file. Downloading file is problematic
+   * for devices like Raspberry or OrangePi, so it's better to refuse all incoming requests.
+   */
+  sendBusyDownloadResponse() {
+    this.request = {
+      write: () => {},
+      end: () => {
+        this._send('headers', {
+          statusCode: '503',
+          statusMessage: 'Download request is processing.',
+          headers: {'download-in-progress-percent': DOWNLOAD_PROGRESS_PCT}
+        });
+        this.onHttpEnd();
+      }
+    };
+  }
+
+  /**
    * Internal (not forwarded api endpoint on /$ip
    */
   internal_request_ip(ireq, forwardToUrl) {
@@ -166,97 +184,88 @@ class Channel extends Object {
     }};
   }
 
-  internal_request_download_upload_file(forwardToUrl) {
-    if (IS_DOWNLOAD_UPLOAD_RUNNING) {
-      this.request = {
-        write: () => {},
-        end: () => {
+  /**
+   * Internal request that download file from specified URL and store it locally
+   * to specified directory. It should be used, to prevent uploading files
+   * through websocket channel which is causing network instability and connection issues.
+   */
+  internal_request_download_file() {
+    IS_DOWNLOADING = true;
+    let requestData = null;
+    this.request = {
+      write: (data) => {
+        requestData = data;
+      },
+      end: () => {
+        // if UPLOAD_DIRECTORY (config.client.uploadDirectory) is not defined,
+        // then can't continue as it's unknown, where to save downloaded file
+        if (! config.client.uploadDirectory) {
+          let msg = 'Bad websocket proxy client configuration, UPLOAD_DIRECTORY is undefined.';
+          warning(msg);
           this._send('headers', {
-            statusCode: '503',
-            statusMessage: `Previous request is still processing.`
+            statusCode: '400',
+            statusMessage: msg,
+            headers: {'Content-Type': 'application/json; charset=utf-8'}
           });
           this.onHttpEnd();
+          IS_DOWNLOADING = false;
+          return;
         }
-      };
-    } else {
 
-      IS_DOWNLOAD_UPLOAD_RUNNING = true;
+        let searchParams = new URLSearchParams(requestData);
+        const fileName = searchParams.get('file_name');
+        const downloadUrl = searchParams.get('download_url');
+        const tempFilePath = path.join(config.client.uploadDirectory, fileName);
 
-      this.request = {
-        write: (data) => {
-          let searchParams = new URLSearchParams(data);
-          const upload_file_name = searchParams.get('upload_file_name');
-          const download_url = searchParams.get('download_url');
-          const uploadUrl = new URL(searchParams.get('upload_url'), forwardToUrl.toString()).toString();
+        const adapter = new URL(downloadUrl).protocol == 'https:' ? https : http;
+        let req = adapter.get(downloadUrl, (response) => {
+          if (response.statusCode !== 200) {
+            this._send('headers', {
+              statusCode: '400',
+              statusMessage: `Error downloading remote file. Remote server responded with unexpected HTTP status: ${response.statusCode} ${response.statusMessage}.`,
+              headers: {'Content-Type': 'application/json; charset=utf-8'}
+            });
+            this.onHttpEnd();
+            IS_DOWNLOADING = false;
+          } else {
+            const localFile = fs.createWriteStream(tempFilePath);
 
-          const tempFilePath = path.join(os.tmpdir(), upload_file_name);
+            DOWNLOAD_PROGRESS = 0; // reset download progress value
 
-          const adapter = new URL(download_url).protocol == 'https:' ? https : http;
+            const size = Number(response.headers['content-length']);
+            let previousProgressInfoValue = 0;
+            response.on('data', data => {
+              this._timeoutTimer.reset()
+              DOWNLOAD_PROGRESS += Buffer.byteLength(data);
+              DOWNLOAD_PROGRESS_PCT = (DOWNLOAD_PROGRESS / size * 100).toFixed(2);
+              if (previousProgressInfoValue < DOWNLOAD_PROGRESS_PCT - 5) { // report progress in 5% intervals to protect system journal/log
+                previousProgressInfoValue = DOWNLOAD_PROGRESS_PCT;
+                info(`Download progress: ${DOWNLOAD_PROGRESS_PCT}%`);
+              }
+              localFile.write(data);
+            });
 
-          adapter.get(download_url, (response) => {
-            if (response.statusCode !== 200) {
+            response.on('end', () => {
+              this._timeoutTimer.reset()
+              localFile.close();
               this._send('headers', {
-                statusCode: '400',
-                statusMessage: `Error downloading remote file. Remote server responded with unexpected HTTP status: ${response.statusCode} ${response.statusMessage}.`
+                statusCode: 200,
+                statusMessage: 'OK',
+                headers: {'Content-Type': 'application/json; charset=utf-8'}
               });
+              this.onHttpData('{"message": "File downloaded."}');
               this.onHttpEnd();
-              IS_DOWNLOAD_UPLOAD_RUNNING = false;
-            } else {
-              const tmpFile = fs.createWriteStream(tempFilePath);
-              response.pipe(tmpFile);
-
-              tmpFile.on('finish', () => {
-                tmpFile.close();
-
-                const form = new FormData();
-                form.append('file', fs.createReadStream(tempFilePath));
-
-                // add/forward any additional formdata (don't include data we used for download/upload)
-                for (const item of searchParams.keys()) {
-                  if (! ['download_url', 'upload_url', 'upload_file_name'].includes(item)) {
-                    form.append(item, searchParams.get(item));
-                  }
-                }
-
-                const options = {
-                  method: 'POST',
-                  headers: form.getHeaders(),
-                };
-
-                const req = http.request(uploadUrl, options, (res) => {
-                  if (res.statusCode != 200 && res.statusCode != 201) {
-                    this._send('headers', {
-                      statusCode: '400',
-                      statusMessage: `Error uploading file. Server responded with unexpected HTTP status: ${res.statusCode} ${res.statusMessage}.`
-                    });
-                    this.onHttpEnd();
-                    IS_DOWNLOAD_UPLOAD_RUNNING = false;
-                  } else {
-                    this._send('headers', {
-                      statusCode: res.statusCode,
-                      statusMessage: res.statusMessage,
-                      headers: res.headers,
-                    });
-                    res.on('data', (chunk) => {
-                      this.onHttpData(chunk);
-                    });
-                    res.on('end', () => {
-                      IS_DOWNLOAD_UPLOAD_RUNNING = false;
-                      this.onHttpEnd();
-                    });
-                  }
-                });
-                req.on('error', (err) => {
-                  throw err;
-                });
-                form.pipe(req);
-              });
-            }
-          });
-        },
-        end: () => {}
-      };
-    }
+              IS_DOWNLOADING = false;
+            });
+          }
+        });
+        req.on('error', (err) => {
+          this.onHttpError(err);
+          IS_DOWNLOADING = false;
+        });
+        req.end();
+      }
+    };
   }
 
   standardForwardedRequest(inReq, forwardToUrl) {
@@ -302,16 +311,20 @@ class Channel extends Object {
   on_headers(message) {
     this._timeoutTimer.reset()
     const incomingRequest = message.data;
-    debug(`< ${this.id}:  ${incomingRequest.method} ${incomingRequest.url}`);
+    info(`< ${this.id}:  ${incomingRequest.method} ${incomingRequest.url}`);
     const forwardToUrl = new URL(this.forwardTo); // clone the original uri
 
+    // when file is downloading to device, skip processing request and send back "device is busy" response
+    if (IS_DOWNLOADING) {
+      return this.sendBusyDownloadResponse();
+
     // special internal API endpoint to get local IP address of the device
-    if (incomingRequest.url.startsWith('/$ip')) {
+    } else if (incomingRequest.url.startsWith('/$ip')) {
       return this.internal_request_ip(incomingRequest, forwardToUrl);
 
     // special internal API endpoint to download file from remote and re-post it
-    } else if (incomingRequest.url.startsWith('/$download_upload_file')) {
-      return this.internal_request_download_upload_file(forwardToUrl);
+    } else if (incomingRequest.url.startsWith('/$download_file')) {
+      return this.internal_request_download_file();
 
     // any other standard request to be forwarded
     } else {
